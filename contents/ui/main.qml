@@ -101,10 +101,11 @@ PlasmoidItem {
     property bool loaded: false
     property double now: Date.now()
 
-    property string fetchScript: Qt.resolvedUrl("../code/fetch.sh").toString().replace("file://", "")
+    // decoded and quoted so an install path with spaces still runs
+    property string fetchScript: decodeURIComponent(Qt.resolvedUrl("../code/fetch.sh").toString().replace("file://", ""))
     // hard timeout so a hung collector never leaves the source stuck
     // (a stuck source silently swallows every later refresh request)
-    property string fetchCmd: "timeout 55 bash " + fetchScript
+    property string fetchCmd: "timeout 55 bash '" + fetchScript + "'"
 
     // ----------------- helpers -----------------
     function money(v) {
