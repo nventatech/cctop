@@ -126,12 +126,13 @@ PlasmoidItem {
                 .join(" ").replace(/(\d) (\d)/, "$1.$2")
     }
 
-    // main model of a session (background haiku calls filtered out)
+    // current model of a session: list is chronological, so the last
+    // non-haiku entry is the one in use (background haiku calls filtered out)
     function mainModel(list) {
         list = list || []
         var main = list.filter(function(m) { return m.indexOf("haiku") < 0 })
         var pick = main.length ? main : list
-        return pick.length ? prettyModel(pick[0]) : ""
+        return pick.length ? prettyModel(pick[pick.length - 1]) : ""
     }
     function sessionModel() { return mainModel(sessionModels) }
 
@@ -246,10 +247,21 @@ PlasmoidItem {
                 root.history = j.history || []
                 root.spark = j.spark || []
                 root.projects = (j.projects || []).filter(function(p) { return p.cost > 0 })
-                // last bar = live claude month total (the collector cache lags)
+                // last bar = live claude month total (the collector cache lags);
+                // right after a month turns, the collector may not list the new
+                // month yet — append it instead of clobbering the previous bar
                 var mh = j.months || []
                 var claude = (j.providers || []).filter(function(p) { return p.id === "claude" })[0]
-                if (mh.length > 0 && claude) mh[mh.length - 1].c = claude.costMonth
+                if (claude) {
+                    var d = new Date(root.now)
+                    var curM = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+                    if (mh.length > 0 && mh[mh.length - 1].m === curM) {
+                        mh[mh.length - 1].c = claude.costMonth
+                    } else {
+                        mh.push({ m: curM, c: claude.costMonth })
+                        if (mh.length > 6) mh = mh.slice(-6)
+                    }
+                }
                 root.months = mh
                 root.prevMonth = j.prevMonth || 0
                 root.models = (j.models || []).filter(function(m) { return m.cost > 0 })
@@ -670,7 +682,7 @@ PlasmoidItem {
                         radius: 3
                         color: root.surface2Color
                         Rectangle {
-                            width: parent.width * (root.live ? root.live.session.pct / 100 : 0)
+                            width: parent.width * Math.min(1, root.live ? root.live.session.pct / 100 : 0)
                             height: parent.height
                             radius: 3
                             color: root.live ? root.sevColor(root.live.session.pct) : root.mutedColor
@@ -864,7 +876,7 @@ PlasmoidItem {
                                 radius: 3
                                 color: root.surface2Color
                                 Rectangle {
-                                    width: parent.width * modelData.data.pct / 100
+                                    width: parent.width * Math.min(1, modelData.data.pct / 100)
                                     height: parent.height
                                     radius: 3
                                     color: root.sevColor(modelData.data.pct)
