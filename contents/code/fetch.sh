@@ -182,8 +182,10 @@ models=$(jq -cn --argjson d "$daily" --arg ms "$monthStart" '
 [ -z "$models" ] && models='[]'
 
 # ----------------- previous month total (hero comparison) -----------------
-prevSince=$(date -d 'last month' +%Y%m01)
-prevKey=$(date -d 'last month' +%Y-%m)
+# anchor on day 1 before subtracting: 'last month' on the 29th-31st can
+# normalize into the current month (Jul 31 - 1 month = Jun 31 = Jul 1)
+prevSince=$(date -d "$monthStart -1 month" +%Y%m01)
+prevKey=$(date -d "$monthStart -1 month" +%Y-%m)
 prevMonth=$(cached "monthly-$prevKey" 43200 $CCU monthly --json --since "$prevSince" | jq -c --arg m "$prevKey" \
   '[(.monthly // [])[] | select((.month // .period) == $m) | .totalCost] | (add // 0)')
 [ -z "$prevMonth" ] && prevMonth=0
@@ -191,7 +193,7 @@ prevMonth=$(cached "monthly-$prevKey" 43200 $CCU monthly --json --since "$prevSi
 # ----------------- monthly history (last 6 months) -----------------
 # current month lags up to the TTL here; the UI overwrites the last bar with
 # the live month total so it always matches the hero number
-sixSince=$(date -d '5 months ago' +%Y%m01)
+sixSince=$(date -d "$monthStart -5 months" +%Y%m01)
 months=$(cached "months-$(date +%Y-%m)" 3600 $CCU monthly --json --since "$sixSince" | jq -c '
   [ (.monthly // [])[] | {m: (.month // .period), c: .totalCost} ] | sort_by(.m) | .[-6:]')
 [ -z "$months" ] && months='[]'
