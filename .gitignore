@@ -1,2 +1,4 @@
 *.plasmoid
+dist/
+media/
 graphify-out/

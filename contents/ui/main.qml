@@ -14,13 +14,21 @@ PlasmoidItem {
     id: root
 
     // ----------------- design tokens (graphite + petrol) -----------------
-    property color bgColor: "#1a1a1d"
-    property color surfaceColor: "#242427"
-    property color surface2Color: "#2d2d31"
-    property color borderColor: "#34343a"
-    property color textColor: "#eaeaee"
-    property color mutedColor: "#909299"
-    property color accentColor: "#2a9fb8"
+    // the palette is fixed dark by default; following the Plasma theme keeps
+    // the popup readable on light desktops
+    readonly property bool sysTheme: Plasmoid.configuration.followSystemTheme
+    // overlay of the theme's text color, used to derive surfaces and borders
+    function themeTint(a) {
+        var t = Kirigami.Theme.textColor
+        return Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(t.r, t.g, t.b, a))
+    }
+    property color bgColor: sysTheme ? Kirigami.Theme.backgroundColor : "#1a1a1d"
+    property color surfaceColor: sysTheme ? themeTint(0.05) : "#242427"
+    property color surface2Color: sysTheme ? themeTint(0.12) : "#2d2d31"
+    property color borderColor: sysTheme ? themeTint(0.18) : "#34343a"
+    property color textColor: sysTheme ? Kirigami.Theme.textColor : "#eaeaee"
+    property color mutedColor: sysTheme ? Kirigami.Theme.disabledTextColor : "#909299"
+    property color accentColor: sysTheme ? Kirigami.Theme.highlightColor : "#2a9fb8"
     property color okColor: "#4ade80"
     property color warnColor: "#fbbf24"
     property color alertColor: "#f2585f"
@@ -42,7 +50,9 @@ PlasmoidItem {
             perMonth: "/mo", tipMonth: "this month", tipSession: "session",
             hist: "RECENT SESSIONS", budget: "budget", projected: "projected",
             topProjects: "TOP PROJECTS", prevMonth: "last month",
-            byModel: "BY MODEL", months6: "LAST 6 MONTHS"
+            byModel: "BY MODEL", months6: "LAST 6 MONTHS",
+            extra: "EXTRA USAGE", credits: "credits", pace: "at this pace",
+            limitFull: "hits 100%"
         },
         pt_BR: {
             loading: "carregando…", month: "este mês", today: "hoje",
@@ -52,7 +62,9 @@ PlasmoidItem {
             perMonth: "/mês", tipMonth: "neste mês", tipSession: "sessão",
             hist: "SESSÕES RECENTES", budget: "orçamento", projected: "projeção",
             topProjects: "TOP PROJETOS", prevMonth: "mês passado",
-            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES"
+            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
+            extra: "USO EXTRA", credits: "créditos", pace: "neste ritmo",
+            limitFull: "bate 100%"
         },
         es: {
             loading: "cargando…", month: "este mes", today: "hoy",
@@ -62,7 +74,9 @@ PlasmoidItem {
             perMonth: "/mes", tipMonth: "en este mes", tipSession: "sesión",
             hist: "SESIONES RECIENTES", budget: "presupuesto", projected: "proyección",
             topProjects: "TOP PROYECTOS", prevMonth: "mes pasado",
-            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES"
+            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
+            extra: "USO EXTRA", credits: "créditos", pace: "a este ritmo",
+            limitFull: "llega a 100%"
         }
     })
     readonly property var localeNames: ({ en: "en_US", pt_BR: "pt_BR", es: "es_ES" })
@@ -87,8 +101,8 @@ PlasmoidItem {
     property bool showProjects: false
     property bool liveStale: false
     property bool notified: false
-    property bool notifiedWeekly: false
-    property bool notifiedWeeklyModel: false
+    // one flag per weekly window ("all" + one per scoped model)
+    property var notifiedModels: ({})
     property bool budgetNotified: false
     readonly property int budgetM: Plasmoid.configuration.budgetMonthly
     readonly property real budgetPct: budgetM > 0 ? costMonth / budgetM * 100 : 0
@@ -111,6 +125,12 @@ PlasmoidItem {
     function money(v) {
         if (hideValues) return "$•••"
         return "$" + v.toFixed(v >= 100 ? 0 : 2)
+    }
+
+    // credits come with their own currency, unlike the dollar costs in the logs
+    function moneyCur(v, cur) {
+        if (!cur || cur === "USD" || cur === "US$") return money(v)
+        return cur + " " + (hideValues ? "•••" : v.toFixed(v >= 100 ? 0 : 2))
     }
 
     // green (0%) → yellow (~50%) → red (100%), like the Claude Code usage bar
@@ -136,6 +156,47 @@ PlasmoidItem {
         return pick.length ? prettyModel(pick[pick.length - 1]) : ""
     }
     function sessionModel() { return mainModel(sessionModels) }
+
+    // the scoped weekly limit belongs to the model the API names, not to the
+    // one in use: switching models must not relabel that bar. The API sends a
+    // family name ("Fable"), so the local logs supply the version ("Fable 5").
+    function scopedModelLabel(name) {
+        if (!name) return sessionModel() || tr("weeklyModel")
+        var seen = (models || []).map(function(m) { return m.name }).concat(sessionModels || [])
+        for (var i = seen.length - 1; i >= 0; i--)
+            if (seen[i].toLowerCase().indexOf(name.toLowerCase()) >= 0) return prettyModel(seen[i])
+        return name
+    }
+
+    // the weekly limit closest to running out (all models vs each scoped one)
+    function worstWeeklyPct() {
+        if (!live) return 0
+        var pct = live.weekly ? live.weekly.pct : 0
+        var wm = live.weekly_models || []
+        for (var i = 0; i < wm.length; i++) pct = Math.max(pct, wm[i].pct)
+        return pct
+    }
+
+    // how long until the 5h window hits 100% at the current pace, "" when it
+    // does not get there before the reset (or it is too early to extrapolate)
+    function timeToFull() {
+        if (!live || !block || liveStale) return ""
+        var start = new Date(block.startTime).getTime()
+        var end = new Date(live.session.resets_at).getTime()
+        var pct = live.session.pct
+        if (isNaN(start) || isNaN(end) || pct <= 0 || now <= start) return ""
+        var elapsed = now - start
+        if (elapsed < (end - start) * 0.2) return ""
+        var eta = elapsed * (100 - pct) / pct
+        if (eta <= 0 || now + eta >= end) return ""
+        return timeLeft(new Date(now + eta).toISOString())
+    }
+
+    // single-quoted shell argument: notification text carries API and log data
+    function shq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
+    function notify(msg) {
+        notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop " + shq(msg))
+    }
 
     // "1h 30m" until an ISO timestamp
     function timeLeft(iso) {
@@ -172,6 +233,7 @@ PlasmoidItem {
     function compactText() {
         var mode = Plasmoid.configuration.panelDisplay
         if (mode === "today") return money(costToday)
+        if (mode === "weekly") return live ? "w " + worstWeeklyPct() + "%" : "cc"
         if (mode === "subs") return hideValues ? "•••"
             : (subscription ? subscription.currency : "US$") + subsTotal()
         if (mode === "reset") return live ? timeLeft(live.session.resets_at) : "cc"
@@ -185,29 +247,30 @@ PlasmoidItem {
         if (live.session.pct < th) { notified = false; return }
         if (notified) return
         notified = true
-        var msg = "Claude " + live.session.pct + "% · " + tr("resets") + " "
-                + Qt.formatTime(new Date(live.session.resets_at), "HH:mm")
-        notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop \"" + msg + "\"")
+        notify("Claude " + live.session.pct + "% · " + tr("resets") + " "
+               + Qt.formatTime(new Date(live.session.resets_at), "HH:mm"))
     }
 
-    // one notification per weekly window (all-models and top-model each)
+    // one notification per weekly window: all models, plus each scoped model
     function checkWeeklyNotify() {
         var th = Plasmoid.configuration.notifyThresholdWeekly
         if (th <= 0 || !live || liveStale) return
-        var checks = [
-            { data: live.weekly, label: tr("weeklyAll"), flag: "notifiedWeekly" },
-            { data: live.weekly_model, label: (sessionModel() || tr("weeklyModel")).toUpperCase(), flag: "notifiedWeeklyModel" }
-        ]
-        for (var i = 0; i < checks.length; i++) {
-            var c = checks[i]
+        var checks = [{ data: live.weekly, key: "all", label: tr("weeklyAll") }]
+        var wm = live.weekly_models || []
+        for (var i = 0; i < wm.length; i++)
+            checks.push({ data: wm[i], key: wm[i].model || ("scoped" + i),
+                          label: scopedModelLabel(wm[i].model).toUpperCase() })
+        var flags = notifiedModels
+        for (var j = 0; j < checks.length; j++) {
+            var c = checks[j]
             if (!c.data) continue
-            if (c.data.pct < th) { root[c.flag] = false; continue }
-            if (root[c.flag]) continue
-            root[c.flag] = true
-            var msg = c.label + " " + c.data.pct + "% · " + tr("resets") + " "
-                    + new Date(c.data.resets_at).toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm")
-            notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop \"" + msg + "\"")
+            if (c.data.pct < th) { flags[c.key] = false; continue }
+            if (flags[c.key]) continue
+            flags[c.key] = true
+            notify(c.label + " " + c.data.pct + "% · " + tr("resets") + " "
+                   + new Date(c.data.resets_at).toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm"))
         }
+        notifiedModels = flags
     }
 
     // one notification per month when the spend crosses the budget
@@ -217,8 +280,7 @@ PlasmoidItem {
         if (costMonth < b) { budgetNotified = false; return }
         if (budgetNotified) return
         budgetNotified = true
-        var msg = money(costMonth) + " / " + money(b) + " " + tr("budget")
-        notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop \"" + msg + "\"")
+        notify(money(costMonth) + " / " + money(b) + " " + tr("budget"))
     }
 
     // ===================== DATA =====================
@@ -306,7 +368,7 @@ PlasmoidItem {
         onClicked: root.expanded = !root.expanded
         // scrolling over the panel widget cycles the display mode
         onWheel: function(wheel) {
-            var modes = ["session", "today", "subs", "reset"]
+            var modes = ["session", "weekly", "today", "subs", "reset"]
             var i = modes.indexOf(Plasmoid.configuration.panelDisplay)
             var next = (i + (wheel.angleDelta.y < 0 ? 1 : modes.length - 1)) % modes.length
             Plasmoid.configuration.panelDisplay = modes[next]
@@ -321,8 +383,13 @@ PlasmoidItem {
                 text: root.compactText()
                 font.family: "monospace"
                 font.bold: true
-                color: ["session", "reset"].indexOf(Plasmoid.configuration.panelDisplay) >= 0 && root.live
-                    ? root.sevColor(root.live.session.pct) : Kirigami.Theme.textColor
+                color: {
+                    var mode = Plasmoid.configuration.panelDisplay
+                    if (!root.live) return Kirigami.Theme.textColor
+                    if (mode === "weekly") return root.sevColor(root.worstWeeklyPct())
+                    if (["session", "reset"].indexOf(mode) >= 0) return root.sevColor(root.live.session.pct)
+                    return Kirigami.Theme.textColor
+                }
             }
         }
     }
@@ -690,6 +757,18 @@ PlasmoidItem {
                         }
                     }
 
+                    // pace warning: only when the current burn overshoots the window
+                    PC3.Label {
+                        readonly property string eta: root.timeToFull()
+                        Layout.fillWidth: true
+                        visible: eta !== ""
+                        text: root.tr("pace") + ": " + root.tr("limitFull") + " "
+                              + root.tr("inWord") + " " + eta
+                        color: root.sevColor(100)
+                        font.pixelSize: fullRep.microSize
+                        wrapMode: Text.WordWrap
+                    }
+
                     PC3.Label {
                         Layout.fillWidth: true
                         visible: root.live !== null
@@ -829,23 +908,34 @@ PlasmoidItem {
             }
 
             // ---------- weekly limits (live) ----------
-            RowLayout {
+            // two per row: accounts can have more than one scoped model limit
+            GridLayout {
                 Layout.fillWidth: true
                 visible: root.live !== null
-                spacing: Kirigami.Units.smallSpacing * 2
+                columns: 2
+                columnSpacing: Kirigami.Units.smallSpacing * 2
+                rowSpacing: Kirigami.Units.smallSpacing * 2
 
                 Repeater {
-                    model: root.live ? [
-                        { label: root.tr("weeklyAll"), data: root.live.weekly },
-                        { label: (root.sessionModel() || root.tr("weeklyModel")).toUpperCase(), data: root.live.weekly_model }
-                    ].filter(e => e.data) : []
+                    id: weeklyRep
+                    model: {
+                        if (!root.live) return []
+                        var list = root.live.weekly ? [{ label: root.tr("weeklyAll"), data: root.live.weekly }] : []
+                        var wm = root.live.weekly_models || []
+                        for (var i = 0; i < wm.length; i++)
+                            list.push({ label: root.scopedModelLabel(wm[i].model).toUpperCase(), data: wm[i] })
+                        return list
+                    }
 
                     Rectangle {
                         Layout.fillWidth: true
+                        // an odd last card spans the row instead of sitting half width
+                        Layout.columnSpan: (index === weeklyRep.count - 1 && weeklyRep.count % 2 === 1) ? 2 : 1
                         radius: 12
                         color: root.surfaceColor
-                        border.color: root.borderColor
-                        border.width: 1
+                        // the limit the API marks active is the one biting now
+                        border.color: modelData.data.active ? root.sevColor(modelData.data.pct) : root.borderColor
+                        border.width: modelData.data.active ? 2 : 1
                         implicitHeight: weeklyCol.implicitHeight + Kirigami.Units.gridUnit
 
                         ColumnLayout {
@@ -889,6 +979,68 @@ PlasmoidItem {
                                 font.pixelSize: fullRep.microSize
                             }
                         }
+                    }
+                }
+            }
+
+            // ---------- extra usage credits (only when enabled on the account) ----------
+            Rectangle {
+                id: extraCard
+                // extra_usage when the account has credits enabled, spend as
+                // the fallback for accounts that only report the cash balance
+                readonly property var extra: root.live ? (root.live.extra || root.live.spend || null) : null
+                readonly property real pct: extra ? extra.pct : 0
+                Layout.fillWidth: true
+                visible: extra !== null
+                radius: 12
+                color: root.surfaceColor
+                border.color: root.borderColor
+                border.width: 1
+                implicitHeight: extraCol.implicitHeight + Kirigami.Units.gridUnit
+
+                ColumnLayout {
+                    id: extraCol
+                    anchors.fill: parent
+                    anchors.margins: Kirigami.Units.gridUnit * 0.65
+                    spacing: Kirigami.Units.smallSpacing
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        PC3.Label {
+                            text: root.tr("extra")
+                            color: root.mutedColor
+                            font.pixelSize: fullRep.microSize
+                            font.letterSpacing: 0.5
+                            Layout.fillWidth: true
+                        }
+                        PC3.Label {
+                            text: Math.round(extraCard.pct) + "%"
+                            font.bold: true
+                            color: root.sevColor(extraCard.pct)
+                            font.pixelSize: fullRep.smallSize
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 6
+                        radius: 3
+                        color: root.surface2Color
+                        Rectangle {
+                            width: parent.width * Math.min(1, extraCard.pct / 100)
+                            height: parent.height
+                            radius: 3
+                            color: root.sevColor(extraCard.pct)
+                        }
+                    }
+                    PC3.Label {
+                        text: extraCard.extra
+                            ? root.moneyCur(extraCard.extra.used || 0, extraCard.extra.currency)
+                              + (extraCard.extra.limit
+                                 ? " / " + root.moneyCur(extraCard.extra.limit, extraCard.extra.currency) : "")
+                              + " " + root.tr("credits")
+                            : ""
+                        color: root.mutedColor
+                        font.pixelSize: fullRep.microSize
                     }
                 }
             }

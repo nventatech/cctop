@@ -23,9 +23,12 @@ is local: no accounts, no API keys, no telemetry.
   behind the folder button in the popup header
 - **Last 7 days** and **last 6 months** bar charts
 - **Live limits** — current 5h session (%, reset time, model in use), weekly
-  all-models and weekly top-model limits, straight from the same endpoint the
-  Claude Code `/usage` command uses (via the OAuth token the CLI already
-  stores locally)
+  all-models limit and one card per model-scoped limit, straight from the same
+  endpoint the Claude Code `/usage` command uses (via the OAuth token the CLI
+  already stores locally). The limit that is currently biting is outlined
+- **Pace warning** — when the current burn rate hits 100% before the 5h window
+  resets, the session card says how long you have left
+- **Extra usage credits** — usage credits card when the account has them on
 - **Recent sessions** — last sessions with model and cost
 - **Subscription auto-detection** — your Claude plan (Pro / Max 5x / Max 20x)
   and your ChatGPT plan (Plus / Pro / Team, from the Codex CLI login) are read
@@ -37,8 +40,9 @@ is local: no accounts, no API keys, no telemetry.
 - **Privacy mode** — the eye button masks every money value (panel included)
 - **Desktop notification** when the session or the weekly limits cross a
   configurable threshold
-- **Scroll on the panel widget** to cycle session % / spend today /
+- **Scroll on the panel widget** to cycle session % / weekly % / spend today /
   subscriptions / reset countdown
+- **Follow the system theme** — optional, for light Plasma desktops
 - **Languages**: English, Português (Brasil), Español
 
 ### 🔌 Providers

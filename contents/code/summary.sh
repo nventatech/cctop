@@ -10,7 +10,7 @@ j=$(bash "$DIR/fetch.sh") || exit 1
 
 yesterday=$(jq -r '.spark[-2].c // 0' <<<"$j")
 week=$(jq -r '[.spark[].c] | add // 0' <<<"$j")
-pct=$(jq -r '.live.weekly_model.pct // .live.weekly.pct // empty' <<<"$j")
+pct=$(jq -r '[.live.weekly.pct // 0, (.live.weekly_models // [])[].pct] | max // empty' <<<"$j")
 
 msg=$(LC_NUMERIC=C printf 'yesterday $%.2f · 7 days $%.2f' "$yesterday" "$week")
 [ -n "$pct" ] && msg="$msg · weekly limit ${pct}%"

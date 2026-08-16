@@ -13,6 +13,7 @@ Kirigami.FormLayout {
     property int cfg_refreshInterval
     property int cfg_budgetMonthly
     property string cfg_extraSubscriptions
+    property bool cfg_followSystemTheme
 
     // defaults mirrored from config/main.xml (silences plasmashell warnings)
     property string cfg_languageDefault: "en"
@@ -22,6 +23,7 @@ Kirigami.FormLayout {
     property int cfg_refreshIntervalDefault: 60
     property int cfg_budgetMonthlyDefault: 0
     property string cfg_extraSubscriptionsDefault: ""
+    property bool cfg_followSystemThemeDefault: false
 
     readonly property string donateUrl: "https://www.paypal.com/donate/?business=SR28XBBCYSPHE&no_recurring=0&item_name=Help+me+buy+a+coffee.&currency_code=USD"
 
@@ -47,6 +49,7 @@ Kirigami.FormLayout {
         valueRole: "value"
         model: [
             { value: "session", text: "Session %" },
+            { value: "weekly", text: "Weekly % (tightest limit)" },
             { value: "today", text: "Spend today" },
             { value: "subs", text: "Subscriptions total" },
             { value: "reset", text: "Session reset countdown" }
@@ -89,6 +92,13 @@ Kirigami.FormLayout {
         stepSize: 30
         value: page.cfg_refreshInterval
         onValueModified: page.cfg_refreshInterval = value
+    }
+
+    QQC2.CheckBox {
+        Kirigami.FormData.label: "Popup colors:"
+        text: "Follow the system theme"
+        checked: page.cfg_followSystemTheme
+        onToggled: page.cfg_followSystemTheme = checked
     }
 
     QQC2.TextArea {

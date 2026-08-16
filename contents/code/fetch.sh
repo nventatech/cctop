@@ -38,9 +38,14 @@ fetchSince=$(printf '%s\n%s\n' "$since" "$week" | sort | head -1)
 days=$(for i in 6 5 4 3 2 1 0; do date -d "-$i days" +%Y-%m-%d; done | jq -Rc . | jq -cs .)
 
 # ----------------- claude cost (local logs) -----------------
-daily=$($CCU daily --json --since "$fetchSince" 2>/dev/null)
+# both ccusage runs take ~0.8s of CPU each, so they run side by side; the
+# daily payload is cached briefly (costs move slower than the refresh cycle)
+tmpD=$(mktemp); tmpB=$(mktemp)
+cached "daily-$fetchSince" 120 $CCU daily --json --since "$fetchSince" > "$tmpD" &
+$CCU blocks --active --json > "$tmpB" 2>/dev/null &
+wait
+daily=$(cat "$tmpD"); block=$(cat "$tmpB"); rm -f "$tmpD" "$tmpB"
 [ -z "$daily" ] && daily='{}'
-block=$($CCU blocks --active --json 2>/dev/null)
 [ -z "$block" ] && block='{}'
 claude=$(jq -cn --argjson d "$daily" --arg today "$today" --arg ms "$monthStart" '{
   id: "claude", name: "Claude", color: "#e8a33d",
@@ -58,7 +63,9 @@ spark=$(jq -cn --argjson d "$daily" --argjson days "$days" \
 # request fails. Costs keep refreshing every cycle; limits move slowly.
 live='null'
 DBG="${XDG_RUNTIME_DIR:-/tmp}/cctop-debug.log"
-CACHE="${XDG_RUNTIME_DIR:-/tmp}/cctop-live.json"
+# the payload shape is part of the name: an upgrade must not read a cache
+# written by the previous version (it would drop the scoped limits for 4 min)
+CACHE="${XDG_RUNTIME_DIR:-/tmp}/cctop-live-v2.json"
 cacheAge=999999
 [ -s "$CACHE" ] && cacheAge=$(( $(date +%s) - $(stat -c %Y "$CACHE") ))
 if [ "$cacheAge" -lt 240 ]; then
@@ -77,12 +84,33 @@ else
     echo "$(date '+%F %T') curl_rc=$rc http=$http resp_len=${#resp}" >> "$DBG"
     [ "$(wc -l < "$DBG" 2>/dev/null || echo 0)" -gt 200 ] && { tail -n 100 "$DBG" > "$DBG.t" && mv "$DBG.t" "$DBG"; }
     if [ -n "$resp" ]; then
-      live=$(jq -c '{
-        session: {pct: (.five_hour.utilization // 0), resets_at: .five_hour.resets_at},
-        weekly:  {pct: (.seven_day.utilization // 0), resets_at: .seven_day.resets_at},
-        weekly_model: ((.limits // []) | map(select(.kind == "weekly_scoped")) | (.[0] // null)
-                      | if . then {pct: .percent, resets_at: .resets_at} else null end)
-      }' <<<"$resp" 2>/dev/null) || live='null'
+      # limits[] carries severity/is_active per window; the five_hour and
+      # seven_day objects stay as the fallback for accounts without it
+      live=$(jq -c '
+        (.limits // []) as $l
+        | def lim(k): ($l | map(select(.kind == k)) | .[0] // null);
+          def flags(x): {active: (x.is_active // false), severity: (x.severity // "normal")};
+        {
+          session: ({pct: (.five_hour.utilization // 0), resets_at: .five_hour.resets_at}
+                    + flags(lim("session"))),
+          weekly:  ({pct: (.seven_day.utilization // 0), resets_at: .seven_day.resets_at}
+                    + flags(lim("weekly_all"))),
+          weekly_models: [ $l[] | select(.kind == "weekly_scoped")
+                           | {pct: .percent, resets_at: .resets_at,
+                              model: (.scope.model.display_name // null)} + flags(.) ],
+          extra: (.extra_usage | if (.is_enabled // false) then
+                    {pct: (.utilization // 0), limit: .monthly_limit,
+                     used: .used_credits, currency: (.currency // "US$")}
+                  else null end),
+          spend: (.spend | if (.enabled // false) then
+                    (.limit // null) as $lim
+                    | {pct: (.percent // 0),
+                       used: ((.used.amount_minor // 0) / pow(10; (.used.exponent // 2))),
+                       limit: (if $lim then ($lim.amount_minor // 0) / pow(10; ($lim.exponent // 2))
+                               else null end),
+                       currency: (.used.currency // "USD")}
+                  else null end)
+        }' <<<"$resp" 2>/dev/null) || live='null'
       [ "$live" != "null" ] && [ -n "$live" ] && printf '%s' "$live" > "$CACHE"
     fi
   fi
@@ -123,11 +151,14 @@ fi
 # ~/.codex/sessions/**/rollout-*.jsonl: one token_count event per turn with
 # last_token_usage {input_tokens, cached_input_tokens, output_tokens}.
 # Pricing: gpt-5 family list price (in 1.25, cached 0.125, out 10.00 per M).
+# $1 = ISO date lower bound: the file mtime only narrows the read, the event
+# timestamp decides — a session touched today may carry last month's turns
 codex_cost() {
-  find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' "$@" 2>/dev/null \
+  find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt "$1" 2>/dev/null \
     | xargs -r cat 2>/dev/null \
-    | jq -s '
+    | jq -s --arg from "$1" '
       [ .[] | select(.type == "event_msg" and .payload.type == "token_count")
+            | select((.timestamp // $from) >= $from)
             | .payload.info.last_token_usage | select(.) ] as $ev
       | (($ev | map(.input_tokens // 0) | add // 0) -
          ($ev | map(.cached_input_tokens // 0) | add // 0)) as $in
@@ -137,7 +168,7 @@ codex_cost() {
 }
 openai='null'
 if [ -d "$HOME/.codex/sessions" ]; then
-  cm=$(codex_cost -newermt "$(date +%Y-%m-01)"); ctd=$(codex_cost -newermt "$today")
+  cm=$(codex_cost "$monthStart"); ctd=$(codex_cost "$today")
   if [ -n "$cm" ] && [ "$cm" != "0" ]; then
     openai=$(jq -cn --argjson c "$cm" --argjson t "${ctd:-0}" \
       '{id: "openai", name: "OpenAI", color: "#10a37f", costMonth: $c, today: $t}')
@@ -150,15 +181,22 @@ fi
 # token_type attribute. Pricing: gemini-2.5-pro list price (in 1.25, out 10 per M).
 gemini='null'
 if [ -s "$HOME/.gemini/telemetry.log" ]; then
-  g=$(jq -s --arg today "$today" '
-    [ .[] | .. | objects | select(.name? == "gemini_cli.token.usage") | .dataPoints? // [] | .[] ] as $pts
-    | def total(f): [$pts[] | select(f) | (.asInt // .value // 0)] | add // 0;
-      { inp: total(.attributes?[]?.value?.stringValue == "input"),
-        out: total(.attributes?[]?.value?.stringValue == "output") }
-    | (.inp * 1.25 + .out * 10) / 1000000' "$HOME/.gemini/telemetry.log" 2>/dev/null)
-  if [ -n "$g" ] && [ "$g" != "0" ] && [ "$g" != "null" ]; then
-    gemini=$(jq -cn --argjson c "$g" \
-      '{id: "gemini", name: "Gemini", color: "#4285f4", costMonth: $c, today: 0}')
+  # data points carry a nanosecond timestamp and the log keeps growing past
+  # the month, so without this window the "month" total was the all-time cost
+  monthNano=$(( $(date -d "$monthStart" +%s) * 1000000000 ))
+  dayNano=$(( $(date -d "$today" +%s) * 1000000000 ))
+  g=$(jq -s --argjson mn "$monthNano" --argjson dn "$dayNano" '
+    [ .[] | .. | objects | select(.name? == "gemini_cli.token.usage")
+          | .. | objects | select(has("dataPoints")) | .dataPoints[] ] as $pts
+    | def since($t): [ $pts[] | select(((.timeUnixNano // .startTimeUnixNano // "0") | tonumber) >= $t) ];
+      def total($p; f): [ $p[] | select(f) | (.asInt // .value // 0) | tonumber ] | add // 0;
+      def cost($p): (total($p; .attributes?[]?.value?.stringValue == "input") * 1.25
+                   + total($p; .attributes?[]?.value?.stringValue == "output") * 10) / 1000000;
+      { month: cost(since($mn)), today: cost(since($dn)) }' \
+    "$HOME/.gemini/telemetry.log" 2>/dev/null)
+  if [ -n "$g" ] && [ "$(jq -r '.month // 0' <<<"$g" 2>/dev/null)" != "0" ]; then
+    gemini=$(jq -cn --argjson g "$g" \
+      '{id: "gemini", name: "Gemini", color: "#4285f4", costMonth: $g.month, today: $g.today}')
   fi
 fi
 
