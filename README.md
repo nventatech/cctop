@@ -1,7 +1,7 @@
 # cctop
 
 [![KDE Store](https://img.shields.io/badge/KDE_Store-cctop-1d99f3?logo=kde&logoColor=white)](https://store.kde.org/browse?search=cctop)
-[![Version](https://img.shields.io/github/v/release/nventatech-tech/cctop?label=version&color=54a3d8)](https://github.com/nventatech-tech/cctop/releases)
+[![Version](https://img.shields.io/github/v/release/nventatech/cctop?label=version&color=54a3d8)](https://github.com/nventatech/cctop/releases)
 [![Plasma 6](https://img.shields.io/badge/Plasma-6-54a3d8?logo=kde&logoColor=white)](https://kde.org/plasma-desktop/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
 
@@ -69,7 +69,7 @@ From the KDE Store: right-click your panel → *Add Widgets* → *Get New Widget
 Manual:
 
 ```sh
-git clone https://github.com/nventatech-tech/cctop.git
+git clone https://github.com/nventatech/cctop.git
 kpackagetool6 --type Plasma/Applet --install cctop
 ```
 
@@ -78,8 +78,8 @@ Then add the **cctop** widget to your panel.
 ## ⚙️ Configuration
 
 Right-click the widget → *Configure cctop*: language, what the panel label
-shows, notification threshold, monthly budget, extra subscriptions and
-refresh interval.
+shows, notification threshold, monthly budget, extra subscriptions, popup
+colors and refresh interval.
 
 ## 🌅 Morning summary (optional)
 
