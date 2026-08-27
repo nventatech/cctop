@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.5.0 — 2026-08-26
+
+Added
+- Click the big number to switch its window: this month, today, last 7 days,
+  last 30 days
+- Plan value line in the subscriptions card: this month's Claude usage at API
+  rates and how many times the plan price that is
+- Pace warning on the weekly cards, like the session card already had
+- Budget notification at 80%, before the one at 100%
+- Notification when a window that was above the threshold resets
+- CSV export of the last 30 days (per day and model) from the footer
+- Footer shows how long ago the data was collected, and warns when the
+  collector failed (old numbers were shown silently)
+- Polish: the big number, progress bars and the 7-day bars animate; hovering
+  a day shows its cost; today vs yesterday delta; the window name is a
+  visible "▾" chip; colored dot in the panel label; provider share bar
+  hidden with a single provider
+- Language "System" (default): follows the desktop locale
+- Per-model pricing for Codex (gpt-5.x family, gpt-4o, o-series) and Gemini
+  (2.5/2.0/1.5); one flat rate before
+- Morning summary follows the widget language and privacy mode
+
+Fixed
+- Morning summary notified zeros when the PC booted after 08:00: the timer
+  fired before the network was up and `bunx ccusage` needs the registry.
+  The script now fails (and the unit retries) instead of notifying, the
+  README unit waits for the network, and a global `ccusage` install is used
+  when present
+- Collector cache moved to `~/.cache/cctop`: numbers survive a reboot and a
+  failed run keeps the last known values instead of dropping to zero
+- Top projects: every repo named `code`/`src` showed up under that name; the
+  label now keeps the parent folder ("app/code") and home sessions show as `~`
+- Threshold notifications repeated after a plasmashell restart; the window
+  is now remembered in the widget settings
+- Debug log only written with `CCTOP_DEBUG=1`; cache entries older than 60 days are pruned
+
+
 ## 1.4.0 — 2026-08-15
 
 Added

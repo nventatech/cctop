@@ -59,7 +59,9 @@ Providers appear automatically when their CLI is used on the machine.
 
 - KDE Plasma 6
 - `jq`, `curl`
-- Node.js **or** Bun (used to run [ccusage](https://github.com/ryoppippi/ccusage))
+- [ccusage](https://github.com/ryoppippi/ccusage): `bun add -g ccusage` (or
+  `npm i -g ccusage`). Without it the widget falls back to `bunx`/`npx`, which
+  needs network access on every run
 - [Claude Code](https://claude.com/claude-code) for the Claude data
 
 ## 📦 Install
@@ -76,6 +78,10 @@ kpackagetool6 --type Plasma/Applet --install cctop
 Then add the **cctop** widget to your panel.
 
 ## ⚙️ Configuration
+
+Click the big number to switch its window (month, today, 7 days, 30 days).
+The export button in the footer writes `~/cctop-<date>.csv` with the last
+30 days per day and model.
 
 Right-click the widget → *Configure cctop*: language, what the panel label
 shows, notification threshold, monthly budget, extra subscriptions, popup
@@ -94,7 +100,10 @@ Description=cctop morning AI cost summary
 
 [Service]
 Type=oneshot
+ExecStartPre=-/usr/bin/nm-online -q -t 30
 ExecStart=%h/.local/share/plasma/plasmoids/com.nventatech.cctop/contents/code/summary.sh
+Restart=on-failure
+RestartSec=60
 ```
 
 ```ini

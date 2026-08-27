@@ -16,7 +16,7 @@ Kirigami.FormLayout {
     property bool cfg_followSystemTheme
 
     // defaults mirrored from config/main.xml (silences plasmashell warnings)
-    property string cfg_languageDefault: "en"
+    property string cfg_languageDefault: ""
     property string cfg_panelDisplayDefault: "session"
     property int cfg_notifyThresholdDefault: 85
     property int cfg_notifyThresholdWeeklyDefault: 85
@@ -35,6 +35,7 @@ Kirigami.FormLayout {
         textRole: "text"
         valueRole: "value"
         model: [
+            { value: "", text: "System" },
             { value: "en", text: "English" },
             { value: "pt_BR", text: "Português (Brasil)" },
             { value: "es", text: "Español" }

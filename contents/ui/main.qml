@@ -40,7 +40,14 @@ PlasmoidItem {
     property string donateUrl: "https://www.paypal.com/donate/?business=SR28XBBCYSPHE&no_recurring=0&item_name=Help+me+buy+a+coffee.&currency_code=USD"
 
     // ----------------- i18n -----------------
-    readonly property string lang: Plasmoid.configuration.language
+    // empty setting = follow the system locale (pt_* -> pt_BR, es_* -> es)
+    function systemLang() {
+        var n = Qt.locale().name
+        if (n.indexOf("pt") === 0) return "pt_BR"
+        if (n.indexOf("es") === 0) return "es"
+        return "en"
+    }
+    readonly property string lang: Plasmoid.configuration.language || systemLang()
     readonly property var strings: ({
         en: {
             loading: "loading…", month: "this month", today: "today",
@@ -52,7 +59,11 @@ PlasmoidItem {
             topProjects: "TOP PROJECTS", prevMonth: "last month",
             byModel: "BY MODEL", months6: "LAST 6 MONTHS",
             extra: "EXTRA USAGE", credits: "credits", pace: "at this pace",
-            limitFull: "hits 100%"
+            limitFull: "hits 100%", updated: "updated", agoSuffix: "ago",
+            stale: "collector failed, showing last data",
+            d7: "last 7 days", d30: "last 30 days", apiEq: "API-equivalent",
+            planValue: "plan value", limitReset: "limit reset", exportCsv: "export CSV",
+            atReset: "at reset", justNow: "just now"
         },
         pt_BR: {
             loading: "carregando…", month: "este mês", today: "hoje",
@@ -64,7 +75,11 @@ PlasmoidItem {
             topProjects: "TOP PROJETOS", prevMonth: "mês passado",
             byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
             extra: "USO EXTRA", credits: "créditos", pace: "neste ritmo",
-            limitFull: "bate 100%"
+            limitFull: "bate 100%", updated: "atualizado há", agoSuffix: "",
+            stale: "coleta falhou, mostrando último dado",
+            d7: "últimos 7 dias", d30: "últimos 30 dias", apiEq: "equivalente em API",
+            planValue: "do plano", limitReset: "limite resetou", exportCsv: "exportar CSV",
+            atReset: "no reset", justNow: "agora"
         },
         es: {
             loading: "cargando…", month: "este mes", today: "hoy",
@@ -76,7 +91,11 @@ PlasmoidItem {
             topProjects: "TOP PROYECTOS", prevMonth: "mes pasado",
             byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
             extra: "USO EXTRA", credits: "créditos", pace: "a este ritmo",
-            limitFull: "llega a 100%"
+            limitFull: "llega a 100%", updated: "actualizado hace", agoSuffix: "",
+            stale: "la recolección falló, mostrando el último dato",
+            d7: "últimos 7 días", d30: "últimos 30 días", apiEq: "equivalente en API",
+            planValue: "del plan", limitReset: "límite reiniciado", exportCsv: "exportar CSV",
+            atReset: "al reinicio", justNow: "ahora"
         }
     })
     readonly property var localeNames: ({ en: "en_US", pt_BR: "pt_BR", es: "es_ES" })
@@ -86,6 +105,10 @@ PlasmoidItem {
     property var providers: []
     property real costMonth: 0
     property real costToday: 0
+    property real cost7d: 0
+    property real cost30d: 0
+    // claude alone, for the plan value line (the subscription is claude's)
+    property real claudeMonth: 0
     property var block: null
     property var live: null
     property var subscription: null
@@ -100,10 +123,10 @@ PlasmoidItem {
     property bool showHistory: false
     property bool showProjects: false
     property bool liveStale: false
-    property bool notified: false
-    // one flag per weekly window ("all" + one per scoped model)
-    property var notifiedModels: ({})
-    property bool budgetNotified: false
+    // last successful collection and whether the latest one failed; both
+    // drive the footer status so stale numbers never look current
+    property double lastUpdate: 0
+    property bool fetchFailed: false
     readonly property int budgetM: Plasmoid.configuration.budgetMonthly
     readonly property real budgetPct: budgetM > 0 ? costMonth / budgetM * 100 : 0
     // end-of-month run rate from month-to-date spend
@@ -120,6 +143,33 @@ PlasmoidItem {
     // hard timeout so a hung collector never leaves the source stuck
     // (a stuck source silently swallows every later refresh request)
     property string fetchCmd: "timeout 55 bash '" + fetchScript + "'"
+    property string exportScript: decodeURIComponent(Qt.resolvedUrl("../code/export.sh").toString().replace("file://", ""))
+
+    // the big number follows the configured window; clicking it cycles
+    readonly property var heroRanges: ["month", "today", "d7", "d30"]
+    readonly property string heroRange: Plasmoid.configuration.heroRange || "month"
+    function heroValue() {
+        if (heroRange === "today") return costToday
+        if (heroRange === "d7") return cost7d
+        if (heroRange === "d30") return cost30d
+        return costMonth
+    }
+    // the displayed figure eases towards the real one on every change
+    property real heroShown: loaded ? heroValue() : 0
+    Behavior on heroShown { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+
+    // today against yesterday, null while there is nothing to compare
+    function todayDelta() {
+        if (spark.length < 2) return null
+        var y = spark[spark.length - 2].c
+        if (!(y > 0)) return null
+        return (costToday - y) / y * 100
+    }
+
+    function cycleHeroRange() {
+        var i = heroRanges.indexOf(heroRange)
+        Plasmoid.configuration.heroRange = heroRanges[(i + 1) % heroRanges.length]
+    }
 
     // ----------------- helpers -----------------
     function money(v) {
@@ -192,10 +242,65 @@ PlasmoidItem {
         return timeLeft(new Date(now + eta).toISOString())
     }
 
+    // same extrapolation for a weekly window (it started 7 days before the
+    // reset the API reports): {full: "2d 4h"} when the pace hits 100% before
+    // the reset, {atReset: 62} otherwise, null when it is too early to tell
+    function weeklyPace(data) {
+        if (!data || !live || liveStale) return null
+        var end = new Date(data.resets_at).getTime()
+        var start = end - 7 * 24 * 3600 * 1000
+        var pct = data.pct
+        if (isNaN(end) || pct <= 0 || now <= start || now >= end) return null
+        var elapsed = now - start
+        if (elapsed < (end - start) * 0.2) return null
+        var eta = elapsed * (100 - pct) / pct
+        if (now + eta >= end) return { atReset: Math.round(pct * (end - start) / elapsed) }
+        var hours = Math.floor(eta / 3600000)
+        var t = hours >= 24 ? Math.floor(hours / 24) + "d " + (hours % 24) + "h"
+                            : timeLeft(new Date(now + eta).toISOString())
+        return { full: t }
+    }
+
+    // a window that was above the threshold and now reports a new reset time
+    // has been freed: say so once, so the user knows they can go again
+    function checkResets(prev, cur) {
+        if (!prev || !cur) return
+        var thS = Plasmoid.configuration.notifyThreshold
+        var thW = Plasmoid.configuration.notifyThresholdWeekly
+        if (thS > 0 && prev.session && cur.session
+            && prev.session.resets_at !== cur.session.resets_at && prev.session.pct >= thS)
+            notify("Claude " + tr("session").toLowerCase() + " · " + tr("limitReset"))
+        if (thW <= 0) return
+        var before = {}
+        if (prev.weekly) before["all"] = prev.weekly
+        var pw = prev.weekly_models || []
+        for (var i = 0; i < pw.length; i++) before[pw[i].model || ("scoped" + i)] = pw[i]
+        var checks = cur.weekly ? [{ key: "all", data: cur.weekly, label: tr("weeklyAll") }] : []
+        var wm = cur.weekly_models || []
+        for (var j = 0; j < wm.length; j++)
+            checks.push({ key: wm[j].model || ("scoped" + j), data: wm[j],
+                          label: scopedModelLabel(wm[j].model).toUpperCase() })
+        for (var k = 0; k < checks.length; k++) {
+            var old = before[checks[k].key]
+            if (old && old.resets_at !== checks[k].data.resets_at && old.pct >= thW)
+                notify(checks[k].label + " · " + tr("limitReset"))
+        }
+    }
+
     // single-quoted shell argument: notification text carries API and log data
     function shq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
     function notify(msg) {
         notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop " + shq(msg))
+    }
+
+    // "3m" / "1h 05m" since the last successful collection
+    function updatedText() {
+        if (!lastUpdate) return ""
+        var mins = Math.max(0, Math.round((now - lastUpdate) / 60000))
+        if (mins === 0) return tr("justNow")
+        var h = Math.floor(mins / 60), m = mins % 60
+        var t = h > 0 ? h + "h " + (m < 10 ? "0" : "") + m + "m" : m + "m"
+        return tr("updated") + " " + t + (tr("agoSuffix") ? " " + tr("agoSuffix") : "")
     }
 
     // "1h 30m" until an ISO timestamp
@@ -229,6 +334,15 @@ PlasmoidItem {
         return t
     }
 
+    // panel label and dot share the severity color of the mode on display
+    function compactColor() {
+        var mode = Plasmoid.configuration.panelDisplay
+        if (!live) return Kirigami.Theme.textColor
+        if (mode === "weekly") return sevColor(worstWeeklyPct())
+        if (["session", "reset"].indexOf(mode) >= 0) return sevColor(live.session.pct)
+        return Kirigami.Theme.textColor
+    }
+
     // panel label follows the configured display mode
     function compactText() {
         var mode = Plasmoid.configuration.panelDisplay
@@ -240,13 +354,16 @@ PlasmoidItem {
         return live ? live.session.pct + "%" : (block ? money(block.costUSD) : "cc")
     }
 
-    // one desktop notification per 5h window when crossing the threshold
+    // one desktop notification per 5h window when crossing the threshold.
+    // The window's reset time is the key and it is stored in the config, so
+    // a plasmashell restart does not repeat the notification
     function checkNotify() {
         var th = Plasmoid.configuration.notifyThreshold
         if (th <= 0 || !live || liveStale) return
-        if (live.session.pct < th) { notified = false; return }
-        if (notified) return
-        notified = true
+        if (live.session.pct < th) return
+        var key = String(live.session.resets_at || "")
+        if (Plasmoid.configuration.notifiedSession === key) return
+        Plasmoid.configuration.notifiedSession = key
         notify("Claude " + live.session.pct + "% · " + tr("resets") + " "
                + Qt.formatTime(new Date(live.session.resets_at), "HH:mm"))
     }
@@ -260,27 +377,36 @@ PlasmoidItem {
         for (var i = 0; i < wm.length; i++)
             checks.push({ data: wm[i], key: wm[i].model || ("scoped" + i),
                           label: scopedModelLabel(wm[i].model).toUpperCase() })
-        var flags = notifiedModels
+        var flags = {}
+        try { flags = JSON.parse(Plasmoid.configuration.notifiedWeekly || "{}") } catch (e) {}
+        var changed = false
         for (var j = 0; j < checks.length; j++) {
             var c = checks[j]
-            if (!c.data) continue
-            if (c.data.pct < th) { flags[c.key] = false; continue }
-            if (flags[c.key]) continue
-            flags[c.key] = true
+            if (!c.data || c.data.pct < th) continue
+            var key = String(c.data.resets_at || "")
+            if (flags[c.key] === key) continue
+            flags[c.key] = key
+            changed = true
             notify(c.label + " " + c.data.pct + "% · " + tr("resets") + " "
                    + new Date(c.data.resets_at).toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm"))
         }
-        notifiedModels = flags
+        if (changed) Plasmoid.configuration.notifiedWeekly = JSON.stringify(flags)
     }
 
-    // one notification per month when the spend crosses the budget
+    // one notification per month at 80% and one at 100% of the budget;
+    // the config keeps "YYYY-MM:<highest level notified>"
     function checkBudget() {
         var b = Plasmoid.configuration.budgetMonthly
         if (b <= 0 || !loaded) return
-        if (costMonth < b) { budgetNotified = false; return }
-        if (budgetNotified) return
-        budgetNotified = true
-        notify(money(costMonth) + " / " + money(b) + " " + tr("budget"))
+        var pct = costMonth / b * 100
+        var level = pct >= 100 ? 100 : (pct >= 80 ? 80 : 0)
+        if (level === 0) return
+        var d = new Date(now)
+        var month = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+        var saved = (Plasmoid.configuration.notifiedBudget || "").split(":")
+        if (saved[0] === month && Number(saved[1] || 0) >= level) return
+        Plasmoid.configuration.notifiedBudget = month + ":" + level
+        notify(Math.round(pct) + "% " + tr("budget") + " · " + money(costMonth) + " / " + money(b))
     }
 
     // ===================== DATA =====================
@@ -295,10 +421,15 @@ PlasmoidItem {
                 root.providers = j.providers || []
                 root.costMonth = j.totalMonth || 0
                 root.costToday = j.totalToday || 0
+                root.cost7d = j.total7d || 0
+                root.cost30d = j.total30d || 0
+                var cp = (j.providers || []).filter(function(p) { return p.id === "claude" })[0]
+                root.claudeMonth = cp ? cp.costMonth : 0
                 root.block = j.block
                 // token expired = live comes back null: keep showing the last
                 // known limits (marked stale) instead of dropping the cards
                 if (j.live) {
+                    root.checkResets(root.live, j.live)
                     root.live = j.live
                     root.liveStale = false
                 } else if (root.live) {
@@ -329,10 +460,12 @@ PlasmoidItem {
                 root.prevMonth = j.prevMonth || 0
                 root.models = (j.models || []).filter(function(m) { return m.cost > 0 })
                 root.loaded = true
+                root.lastUpdate = Date.now()
+                root.fetchFailed = false
                 root.checkNotify()
                 root.checkWeeklyNotify()
                 root.checkBudget()
-            } catch (e) { /* keep last values */ }
+            } catch (e) { root.fetchFailed = true }
         }
     }
 
@@ -354,10 +487,10 @@ PlasmoidItem {
     }
 
     toolTipMainText: "cctop"
-    toolTipSubText: loaded
-        ? money(costMonth) + " " + tr("tipMonth")
+    toolTipSubText: !loaded ? tr("loading")
+        : money(costMonth) + " " + tr("tipMonth")
           + (live ? " · " + tr("tipSession") + " " + live.session.pct + "%" : "")
-        : tr("loading")
+          + (fetchFailed ? "\n" + tr("stale") : "")
 
     preferredRepresentation: compactRepresentation
 
@@ -377,19 +510,20 @@ PlasmoidItem {
             id: compactRow
             anchors.centerIn: parent
             spacing: Kirigami.Units.smallSpacing
+            Rectangle {
+                width: 7; height: 7; radius: 3.5
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.live !== null
+                color: root.compactColor()
+                Behavior on color { ColorAnimation { duration: 300 } }
+            }
             PC3.Label {
                 id: label
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.compactText()
                 font.family: "monospace"
                 font.bold: true
-                color: {
-                    var mode = Plasmoid.configuration.panelDisplay
-                    if (!root.live) return Kirigami.Theme.textColor
-                    if (mode === "weekly") return root.sevColor(root.worstWeeklyPct())
-                    if (["session", "reset"].indexOf(mode) >= 0) return root.sevColor(root.live.session.pct)
-                    return Kirigami.Theme.textColor
-                }
+                color: root.compactColor()
             }
         }
     }
@@ -467,16 +601,40 @@ PlasmoidItem {
                 spacing: Kirigami.Units.smallSpacing
 
                 PC3.Label {
-                    text: root.loaded ? root.money(root.costMonth) : "…"
+                    text: root.loaded ? root.money(root.heroShown) : "…"
                     color: root.textColor
                     font.pixelSize: Kirigami.Units.gridUnit * 2.4
                     font.bold: true
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.cycleHeroRange()
+                    }
                 }
                 RowLayout {
                     spacing: 0
                     PC3.Label {
-                        text: root.tr("month") + "  ·  " + root.tr("today") + " " + root.money(root.costToday)
+                        text: root.tr(root.heroRange) + " ▾"
                         color: root.mutedColor
+                        font.pixelSize: fullRep.smallSize
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.cycleHeroRange()
+                        }
+                    }
+                    PC3.Label {
+                        text: root.heroRange === "month"
+                            ? "  ·  " + root.tr("today") + " " + root.money(root.costToday)
+                            : "  ·  " + root.tr("month") + " " + root.money(root.costMonth)
+                        color: root.mutedColor
+                        font.pixelSize: fullRep.smallSize
+                    }
+                    PC3.Label {
+                        readonly property var delta: root.todayDelta()
+                        visible: root.heroRange === "month" && delta !== null && !root.hideValues
+                        text: " (" + (delta >= 0 ? "+" : "−") + Math.abs(Math.round(delta || 0)) + "%)"
+                        color: delta > 0 ? root.sevColor(100) : root.sevColor(0)
                         font.pixelSize: fullRep.smallSize
                     }
                     PC3.Label {
@@ -520,6 +678,7 @@ PlasmoidItem {
                         color: root.surface2Color
                         Rectangle {
                             width: parent.width * Math.min(1, root.budgetPct / 100)
+                            Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                             height: parent.height
                             radius: 3
                             color: root.sevColor(root.budgetPct)
@@ -535,6 +694,8 @@ PlasmoidItem {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.smallSpacing
+                    // one provider fills the whole bar: nothing to compare
+                    visible: root.providers.length > 1
                     height: 6
                     radius: 3
                     clip: true
@@ -587,6 +748,9 @@ PlasmoidItem {
                     visible: root.spark.length > 0
                     implicitHeight: Kirigami.Units.gridUnit * 3.2
                     property real peak: Math.max.apply(null, root.spark.map(function(s) { return s.c }).concat([0.01]))
+                    // bars grow from the baseline each time the popup opens
+                    property real grow: 1
+                    NumberAnimation on grow { from: 0; to: 1; duration: 600; easing.type: Easing.OutCubic; running: root.expanded }
 
                     RowLayout {
                         anchors.fill: parent
@@ -594,22 +758,29 @@ PlasmoidItem {
                         Repeater {
                             model: root.spark
                             ColumnLayout {
+                                id: sparkCol
                                 Layout.fillWidth: true
                                 spacing: 2
+                                readonly property string dayName: new Date(modelData.d + "T12:00:00").toLocaleDateString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd").slice(0, 3)
                                 Item {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    MouseArea { id: sparkHover; anchors.fill: parent; hoverEnabled: true }
+                                    PC3.ToolTip.visible: sparkHover.containsMouse
+                                    PC3.ToolTip.text: sparkCol.dayName + " · " + root.money(modelData.c)
+                                    PC3.ToolTip.delay: 300
                                     Rectangle {
                                         anchors.bottom: parent.bottom
                                         width: parent.width
-                                        height: Math.max(3, parent.height * (modelData.c / sparkBox.peak))
+                                        height: Math.max(3, parent.height * (modelData.c / sparkBox.peak)) * sparkBox.grow
                                         radius: 2
                                         color: root.accentColor
-                                        opacity: index === root.spark.length - 1 ? 1 : 0.5
+                                        opacity: index === root.spark.length - 1 || sparkHover.containsMouse ? 1 : 0.5
+                                        Behavior on opacity { NumberAnimation { duration: 120 } }
                                     }
                                 }
                                 PC3.Label {
-                                    text: new Date(modelData.d + "T12:00:00").toLocaleDateString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd").slice(0, 3)
+                                    text: sparkCol.dayName
                                     color: root.mutedColor
                                     font.pixelSize: fullRep.microSize
                                     Layout.alignment: Qt.AlignHCenter
@@ -751,6 +922,7 @@ PlasmoidItem {
                         color: root.surface2Color
                         Rectangle {
                             width: parent.width * Math.min(1, root.live ? root.live.session.pct / 100 : 0)
+                            Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                             height: parent.height
                             radius: 3
                             color: root.live ? root.sevColor(root.live.session.pct) : root.mutedColor
@@ -968,15 +1140,32 @@ PlasmoidItem {
                                 color: root.surface2Color
                                 Rectangle {
                                     width: parent.width * Math.min(1, modelData.data.pct / 100)
+                                    Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                                     height: parent.height
                                     radius: 3
                                     color: root.sevColor(modelData.data.pct)
                                 }
                             }
-                            PC3.Label {
-                                text: root.tr("resets") + " " + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
-                                color: root.mutedColor
-                                font.pixelSize: fullRep.microSize
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+                                PC3.Label {
+                                    text: root.tr("resets") + " " + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
+                                    color: root.mutedColor
+                                    font.pixelSize: fullRep.microSize
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                // pace at the current burn: when it hits 100%, or where it lands at the reset
+                                PC3.Label {
+                                    readonly property var pace: root.weeklyPace(modelData.data)
+                                    visible: pace !== null
+                                    text: !pace ? ""
+                                        : pace.full ? "100% " + root.tr("inWord") + " " + pace.full
+                                        : "≈" + pace.atReset + "% " + root.tr("atReset")
+                                    color: pace && pace.full ? root.warnColor : root.mutedColor
+                                    font.pixelSize: fullRep.microSize
+                                }
                             }
                         }
                     }
@@ -1027,6 +1216,7 @@ PlasmoidItem {
                         color: root.surface2Color
                         Rectangle {
                             width: parent.width * Math.min(1, extraCard.pct / 100)
+                            Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                             height: parent.height
                             radius: 3
                             color: root.sevColor(extraCard.pct)
@@ -1104,6 +1294,16 @@ PlasmoidItem {
                             font.pixelSize: fullRep.smallSize
                         }
                     }
+                    // what this month's claude usage would cost at API rates vs the plan
+                    PC3.Label {
+                        visible: root.subscription !== null && root.claudeMonth > 0 && root.subscription.price > 0
+                        text: root.tr("apiEq") + " " + root.money(root.claudeMonth) + "  ·  "
+                              + (root.hideValues ? "•••" : (root.claudeMonth / root.subscription.price).toFixed(1)) + "x " + root.tr("planValue")
+                        color: root.mutedColor
+                        font.pixelSize: fullRep.microSize
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
                 }
             }
 
@@ -1116,7 +1316,20 @@ PlasmoidItem {
                     visible: root.donateUrl !== ""
                     onClicked: Qt.openUrlExternally(root.donateUrl)
                 }
-                Item { Layout.fillWidth: true }
+                PC3.Label {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Kirigami.Units.smallSpacing
+                    text: root.fetchFailed ? root.tr("stale") : root.updatedText()
+                    color: root.fetchFailed ? root.warnColor : root.mutedColor
+                    font.pixelSize: fullRep.microSize
+                    elide: Text.ElideRight
+                }
+                PC3.ToolButton {
+                    icon.name: "document-export"
+                    PC3.ToolTip.text: root.tr("exportCsv")
+                    PC3.ToolTip.visible: hovered
+                    onClicked: notifier.connectSource("bash '" + root.exportScript + "'")
+                }
                 PC3.ToolButton {
                     icon.name: "view-refresh"
                     onClicked: {

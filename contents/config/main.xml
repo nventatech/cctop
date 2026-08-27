@@ -6,7 +6,7 @@
     <kcfgfile name=""/>
     <group name="General">
         <entry name="language" type="String">
-            <default>en</default>
+            <default></default>
         </entry>
         <entry name="panelDisplay" type="String">
             <default>session</default>
@@ -31,6 +31,18 @@
         </entry>
         <entry name="followSystemTheme" type="Bool">
             <default>false</default>
+        </entry>
+        <entry name="notifiedSession" type="String">
+            <default></default>
+        </entry>
+        <entry name="notifiedWeekly" type="String">
+            <default>{}</default>
+        </entry>
+        <entry name="notifiedBudget" type="String">
+            <default></default>
+        </entry>
+        <entry name="heroRange" type="String">
+            <default>month</default>
         </entry>
     </group>
 </kcfg>
