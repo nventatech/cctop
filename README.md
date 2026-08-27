@@ -15,7 +15,9 @@ is local: no accounts, no API keys, no telemetry.
 
 - **Panel indicator** — live Claude session usage % (green → yellow → red),
   today's spend or subscriptions total (configurable)
-- **Monthly spend** per provider with stacked bar and legend
+- **Spend** per provider with stacked bar and legend; click the big number to
+  switch its window (this month, today, last 7 days, last 30 days). Today shows
+  the delta against yesterday
 - **End-of-month projection** — run rate from the month so far, tinted by how
   it compares to your budget
 - **Last month comparison** — previous month total and the projected delta
@@ -26,8 +28,9 @@ is local: no accounts, no API keys, no telemetry.
   all-models limit and one card per model-scoped limit, straight from the same
   endpoint the Claude Code `/usage` command uses (via the OAuth token the CLI
   already stores locally). The limit that is currently biting is outlined
-- **Pace warning** — when the current burn rate hits 100% before the 5h window
-  resets, the session card says how long you have left
+- **Pace warning** — when the current burn rate hits 100% before the window
+  resets, the session and weekly cards say how long you have left; otherwise
+  the weekly cards show where the usage lands at the reset
 - **Extra usage credits** — usage credits card when the account has them on
 - **Recent sessions** — last sessions with model and cost
 - **Subscription auto-detection** — your Claude plan (Pro / Max 5x / Max 20x)
@@ -35,11 +38,16 @@ is local: no accounts, no API keys, no telemetry.
   from local CLI files
 - **Extra subscriptions** — add any other fixed AI cost in the settings, one
   per line (`Cursor Pro: 20`)
-- **Monthly budget** — optional limit with progress bar and a notification
-  when the spend crosses it
+- **Plan value** — this month's Claude usage at API rates next to what the
+  plan costs
+- **Monthly budget** — optional limit with progress bar and notifications at
+  80% and 100%
 - **Privacy mode** — the eye button masks every money value (panel included)
-- **Desktop notification** when the session or the weekly limits cross a
-  configurable threshold
+- **Desktop notifications** when the session or the weekly limits cross a
+  configurable threshold, and when such a window resets
+- **CSV export** of the last 30 days per day and model (footer button)
+- **Morning summary** — optional systemd timer with yesterday's spend, the
+  7-day total and the weekly limit (see below)
 - **Scroll on the panel widget** to cycle session % / weekly % / spend today /
   subscriptions / reset countdown
 - **Follow the system theme** — optional, for light Plasma desktops

@@ -1100,9 +1100,11 @@ PlasmoidItem {
                     }
 
                     Rectangle {
+                        id: weeklyCard
                         Layout.fillWidth: true
                         // an odd last card spans the row instead of sitting half width
                         Layout.columnSpan: (index === weeklyRep.count - 1 && weeklyRep.count % 2 === 1) ? 2 : 1
+                        readonly property bool wide: Layout.columnSpan === 2
                         radius: 12
                         color: root.surfaceColor
                         // the limit the API marks active is the one biting now
@@ -1149,8 +1151,10 @@ PlasmoidItem {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: Kirigami.Units.smallSpacing
+                                // half-width cards have no room for the "resets" word
                                 PC3.Label {
-                                    text: root.tr("resets") + " " + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
+                                    text: (weeklyCard.wide ? root.tr("resets") + " " : "")
+                                          + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
                                     color: root.mutedColor
                                     font.pixelSize: fullRep.microSize
                                     elide: Text.ElideRight
