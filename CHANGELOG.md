@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased (1.6.0)
+
+Fixed
+- Half-width weekly cards cut the reset time ("resets Sat …"); they now show
+  only the time, full-width cards keep the word
+
+
 ## 1.5.0 — 2026-08-26
 
 Added
