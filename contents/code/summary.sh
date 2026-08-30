@@ -6,9 +6,6 @@
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# widget settings live in the applet config of the containment that hosts
-# it: the group right above "plugin=com.nventatech.cctop" plus
-# "[Configuration][General]". Defaults are not written, so missing = default.
 widget_cfg() {
   local rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
   [ -f "$rc" ] || return
@@ -33,8 +30,6 @@ esac
 
 j=$(bash "$DIR/fetch.sh") || exit 1
 [ -z "$j" ] && exit 1
-# no cost data at all means the collector failed (offline at boot, ccusage
-# unavailable): fail so the unit retries instead of notifying zeros
 jq -e '[.spark[].c] | add > 0' <<<"$j" >/dev/null || exit 1
 
 yesterday=$(jq -r '.spark[-2].c // 0' <<<"$j")

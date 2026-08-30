@@ -14,11 +14,7 @@ import "strings.js" as Strings
 PlasmoidItem {
     id: root
 
-    // ----------------- design tokens (graphite + petrol) -----------------
-    // the palette is fixed dark by default; following the Plasma theme keeps
-    // the popup readable on light desktops
     readonly property bool sysTheme: Plasmoid.configuration.followSystemTheme
-    // overlay of the theme's text color, used to derive surfaces and borders
     function themeTint(a) {
         var t = Kirigami.Theme.textColor
         return Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(t.r, t.g, t.b, a))
@@ -34,14 +30,10 @@ PlasmoidItem {
     property color warnColor: "#fbbf24"
     property color alertColor: "#f2585f"
 
-    // privacy mode: replace every money value with dots (eye button in the header)
     readonly property bool hideValues: Plasmoid.configuration.privacy
 
-    // donation link (heart button in the header; hidden while empty)
     property string donateUrl: "https://www.paypal.com/donate/?business=SR28XBBCYSPHE&no_recurring=0&item_name=Help+me+buy+a+coffee.&currency_code=USD"
 
-    // ----------------- i18n -----------------
-    // empty setting = follow the system locale (pt_* -> pt_BR, es_* -> es)
     function systemLang() {
         var n = Qt.locale().name
         if (n.indexOf("pt") === 0) return "pt_BR"
@@ -53,13 +45,11 @@ PlasmoidItem {
     readonly property var localeNames: ({ en: "en_US", pt_BR: "pt_BR", es: "es_ES" })
     function tr(key) { return (strings[lang] || strings.en)[key] }
 
-    // ----------------- state -----------------
     property var providers: []
     property real costMonth: 0
     property real costToday: 0
     property real cost7d: 0
     property real cost30d: 0
-    // claude alone, for the plan value line (the subscription is claude's)
     property real claudeMonth: 0
     property var block: null
     property var live: null
@@ -75,13 +65,10 @@ PlasmoidItem {
     property bool showHistory: false
     property bool showProjects: false
     property bool liveStale: false
-    // last successful collection and whether the latest one failed; both
-    // drive the footer status so stale numbers never look current
     property double lastUpdate: 0
     property bool fetchFailed: false
     readonly property int budgetM: Plasmoid.configuration.budgetMonthly
     readonly property real budgetPct: budgetM > 0 ? costMonth / budgetM * 100 : 0
-    // end-of-month run rate from month-to-date spend
     readonly property real projectedMonth: {
         var d = new Date(now)
         var daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
@@ -90,14 +77,10 @@ PlasmoidItem {
     property bool loaded: false
     property double now: Date.now()
 
-    // decoded and quoted so an install path with spaces still runs
     property string fetchScript: decodeURIComponent(Qt.resolvedUrl("../code/fetch.sh").toString().replace("file://", ""))
-    // hard timeout so a hung collector never leaves the source stuck
-    // (a stuck source silently swallows every later refresh request)
     property string fetchCmd: "timeout 55 bash '" + fetchScript + "'"
     property string exportScript: decodeURIComponent(Qt.resolvedUrl("../code/export.sh").toString().replace("file://", ""))
 
-    // the big number follows the configured window; clicking it cycles
     readonly property var heroRanges: ["month", "today", "d7", "d30"]
     readonly property string heroRange: Plasmoid.configuration.heroRange || "month"
     function heroValue() {
@@ -106,11 +89,9 @@ PlasmoidItem {
         if (heroRange === "d30") return cost30d
         return costMonth
     }
-    // the displayed figure eases towards the real one on every change
     property real heroShown: loaded ? heroValue() : 0
     Behavior on heroShown { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
 
-    // today against yesterday, null while there is nothing to compare
     function todayDelta() {
         if (spark.length < 2) return null
         var y = spark[spark.length - 2].c
@@ -123,25 +104,21 @@ PlasmoidItem {
         Plasmoid.configuration.heroRange = heroRanges[(i + 1) % heroRanges.length]
     }
 
-    // ----------------- helpers -----------------
     function money(v) {
         if (hideValues) return "$•••"
         return "$" + v.toFixed(v >= 100 ? 0 : 2)
     }
 
-    // credits come with their own currency, unlike the dollar costs in the logs
     function moneyCur(v, cur) {
         if (!cur || cur === "USD" || cur === "US$") return money(v)
         return cur + " " + (hideValues ? "•••" : v.toFixed(v >= 100 ? 0 : 2))
     }
 
-    // green (0%) → yellow (~50%) → red (100%), like the Claude Code usage bar
     function sevColor(pct) {
         var t = Math.max(0, Math.min(1, pct / 100))
         return Qt.hsla((1 - t) * 0.33, 0.72, 0.58, 1)
     }
 
-    // "claude-fable-5" -> "Fable 5", "claude-haiku-4-5-20251001" -> "Haiku 4.5"
     function prettyModel(m) {
         var p = m.replace("claude-", "").split("-")
         if (p.length && /^\d{8}$/.test(p[p.length - 1])) p.pop()
@@ -149,8 +126,6 @@ PlasmoidItem {
                 .join(" ").replace(/(\d) (\d)/, "$1.$2")
     }
 
-    // current model of a session: list is chronological, so the last
-    // non-haiku entry is the one in use (background haiku calls filtered out)
     function mainModel(list) {
         list = list || []
         var main = list.filter(function(m) { return m.indexOf("haiku") < 0 })
@@ -159,9 +134,6 @@ PlasmoidItem {
     }
     function sessionModel() { return mainModel(sessionModels) }
 
-    // the scoped weekly limit belongs to the model the API names, not to the
-    // one in use: switching models must not relabel that bar. The API sends a
-    // family name ("Fable"), so the local logs supply the version ("Fable 5").
     function scopedModelLabel(name) {
         if (!name) return sessionModel() || tr("weeklyModel")
         var seen = (models || []).map(function(m) { return m.name }).concat(sessionModels || [])
@@ -170,7 +142,6 @@ PlasmoidItem {
         return name
     }
 
-    // the weekly limit closest to running out (all models vs each scoped one)
     function worstWeeklyPct() {
         if (!live) return 0
         var pct = live.weekly ? live.weekly.pct : 0
@@ -179,8 +150,6 @@ PlasmoidItem {
         return pct
     }
 
-    // how long until the 5h window hits 100% at the current pace, "" when it
-    // does not get there before the reset (or it is too early to extrapolate)
     function timeToFull() {
         if (!live || !block || liveStale) return ""
         var start = new Date(block.startTime).getTime()
@@ -194,9 +163,6 @@ PlasmoidItem {
         return timeLeft(new Date(now + eta).toISOString())
     }
 
-    // same extrapolation for a weekly window (it started 7 days before the
-    // reset the API reports): {full: "2d 4h"} when the pace hits 100% before
-    // the reset, {atReset: 62} otherwise, null when it is too early to tell
     function weeklyPace(data) {
         if (!data || !live || liveStale) return null
         var end = new Date(data.resets_at).getTime()
@@ -213,9 +179,6 @@ PlasmoidItem {
         return { full: t }
     }
 
-    // the API stamps resets_at with the microsecond of the request, so the
-    // string differs on every poll and can even cross a minute boundary:
-    // round to the minute before it is used to identify a window
     function roundReset(s) {
         var t = Date.parse(s)
         return isNaN(t) ? s : new Date(Math.round(t / 60000) * 60000).toISOString()
@@ -227,7 +190,6 @@ PlasmoidItem {
         return l
     }
 
-    // every weekly window of a payload: all models, plus each scoped model
     function weeklyChecks(l) {
         var out = l && l.weekly ? [{ key: "all", data: l.weekly, label: tr("weeklyAll") }] : []
         var wm = (l && l.weekly_models) || []
@@ -237,7 +199,6 @@ PlasmoidItem {
         return out
     }
 
-    // "20:00" for a window closing within the day, "Mon 20:00" further out
     function resetLabel(iso) {
         var d = new Date(iso)
         if (isNaN(d.getTime())) return ""
@@ -246,9 +207,6 @@ PlasmoidItem {
             : d.toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm")
     }
 
-    // a window that was above the threshold and now reports a new reset time
-    // has been freed: say so once, with how full the new window already is
-    // and when it closes
     function checkResets(prev, cur) {
         if (!prev || !cur) return
         var thS = Plasmoid.configuration.notifyThreshold
@@ -272,13 +230,11 @@ PlasmoidItem {
                + tr("resets") + " " + resetLabel(data.resets_at))
     }
 
-    // single-quoted shell argument: notification text carries API and log data
     function shq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
     function notify(msg) {
         notifier.connectSource("notify-send -a cctop -i office-chart-bar cctop " + shq(msg))
     }
 
-    // "3m" / "1h 05m" since the last successful collection
     function updatedText() {
         if (!lastUpdate) return ""
         var mins = Math.max(0, Math.round((now - lastUpdate) / 60000))
@@ -288,14 +244,12 @@ PlasmoidItem {
         return tr("updated") + " " + t + (tr("agoSuffix") ? " " + tr("agoSuffix") : "")
     }
 
-    // "1h 30m" until an ISO timestamp
     function timeLeft(iso) {
         var mins = Math.max(0, Math.round((new Date(iso).getTime() - now) / 60000))
         var h = Math.floor(mins / 60), m = mins % 60
         return h > 0 ? h + "h " + m + "m" : m + "m"
     }
 
-    // user-defined subscriptions from settings, one per line "Name: price"
     function extraSubscriptions() {
         var lines = (Plasmoid.configuration.extraSubscriptions || "").split("\n")
         var list = []
@@ -319,7 +273,6 @@ PlasmoidItem {
         return t
     }
 
-    // panel label and dot share the severity color of the mode on display
     function compactColor() {
         var mode = Plasmoid.configuration.panelDisplay
         if (!live) return Kirigami.Theme.textColor
@@ -328,7 +281,6 @@ PlasmoidItem {
         return Kirigami.Theme.textColor
     }
 
-    // panel label follows the configured display mode
     function compactText() {
         var mode = Plasmoid.configuration.panelDisplay
         if (mode === "today") return money(costToday)
@@ -339,9 +291,6 @@ PlasmoidItem {
         return live ? live.session.pct + "%" : (block ? money(block.costUSD) : "cc")
     }
 
-    // levels notified inside one window: the configured threshold, then 95%
-    // and 100%, so a window that keeps filling warns again instead of going
-    // quiet after the first crossing
     function notifyLevel(pct, th) {
         var lv = 0
         var steps = [th, 95, 100]
@@ -350,16 +299,12 @@ PlasmoidItem {
         return lv
     }
 
-    // window state is "<resets_at>|<highest level notified>"; the reset time
-    // is part of it so a new window starts over, and it lives in the config
-    // so a plasmashell restart does not repeat the notification
     function levelKey(resetsAt, lv) { return String(resetsAt || "") + "|" + lv }
     function levelPending(saved, resetsAt, lv) {
         var p = String(saved || "").split("|")
         return !(p[0] === String(resetsAt || "") && Number(p[1]) >= lv)
     }
 
-    // one notification per level per 5h window
     function checkNotify() {
         var th = Plasmoid.configuration.notifyThreshold
         if (th <= 0 || !live || liveStale) return
@@ -371,7 +316,6 @@ PlasmoidItem {
         notify("Claude " + s.pct + "% · " + tr("resets") + " " + resetLabel(s.resets_at))
     }
 
-    // same levels for every weekly window: all models, plus each scoped model
     function checkWeeklyNotify() {
         var th = Plasmoid.configuration.notifyThresholdWeekly
         if (th <= 0 || !live || liveStale) return
@@ -392,9 +336,6 @@ PlasmoidItem {
         if (changed) Plasmoid.configuration.notifiedWeekly = JSON.stringify(flags)
     }
 
-    // the current burn overshoots the window: warn once per window, while
-    // there is still time to slow down. Windows already past the threshold
-    // are skipped, they notify on their own and would only repeat the news
     function checkPaceNotify() {
         if (!live || liveStale) return
         var flags = {}
@@ -429,8 +370,6 @@ PlasmoidItem {
                + tr("inWord") + " " + eta)
     }
 
-    // the account is locked out of a window: the API says why, and that is
-    // worth one notification, once per window
     function checkLocked() {
         if (!live || liveStale) return
         var flags = {}
@@ -451,8 +390,6 @@ PlasmoidItem {
         if (changed) Plasmoid.configuration.notifiedLocked = JSON.stringify(flags)
     }
 
-    // one notification per month at 80% and one at 100% of the budget;
-    // the config keeps "YYYY-MM:<highest level notified>"
     function checkBudget() {
         var b = Plasmoid.configuration.budgetMonthly
         if (b <= 0 || !loaded) return
@@ -467,7 +404,6 @@ PlasmoidItem {
         notify(Math.round(pct) + "% " + tr("budget") + " · " + money(costMonth) + " / " + money(b))
     }
 
-    // ===================== DATA =====================
     P5Support.DataSource {
         id: fetcher
         engine: "executable"
@@ -484,8 +420,6 @@ PlasmoidItem {
                 var cp = (j.providers || []).filter(function(p) { return p.id === "claude" })[0]
                 root.claudeMonth = cp ? cp.costMonth : 0
                 root.block = j.block
-                // token expired = live comes back null: keep showing the last
-                // known limits (marked stale) instead of dropping the cards
                 if (j.live) {
                     var lv = root.normalizeLive(j.live)
                     root.checkResets(root.live, lv)
@@ -500,9 +434,6 @@ PlasmoidItem {
                 root.history = j.history || []
                 root.spark = j.spark || []
                 root.projects = (j.projects || []).filter(function(p) { return p.cost > 0 })
-                // last bar = live claude month total (the collector cache lags);
-                // right after a month turns, the collector may not list the new
-                // month yet — append it instead of clobbering the previous bar
                 var mh = j.months || []
                 var claude = (j.providers || []).filter(function(p) { return p.id === "claude" })[0]
                 if (claude) {
@@ -555,12 +486,10 @@ PlasmoidItem {
 
     preferredRepresentation: compactRepresentation
 
-    // ===================== PANEL =====================
     compactRepresentation: MouseArea {
         Layout.preferredWidth: compactRow.implicitWidth + Kirigami.Units.smallSpacing * 4
         Layout.minimumWidth: Layout.preferredWidth
         onClicked: root.expanded = !root.expanded
-        // scrolling over the panel widget cycles the display mode
         onWheel: function(wheel) {
             var modes = ["session", "weekly", "today", "subs", "reset"]
             var i = modes.indexOf(Plasmoid.configuration.panelDisplay)
@@ -589,14 +518,12 @@ PlasmoidItem {
         }
     }
 
-    // ===================== POPUP =====================
     fullRepresentation: Item {
         id: fullRep
         Layout.preferredWidth: Kirigami.Units.gridUnit * 27
         Layout.preferredHeight: column.implicitHeight + Kirigami.Units.gridUnit + column.anchors.bottomMargin
         Layout.minimumWidth: Layout.preferredWidth
         Layout.minimumHeight: Layout.preferredHeight
-        // keeps the dialog from staying tall after the history card collapses
         Layout.maximumWidth: Layout.preferredWidth
         Layout.maximumHeight: Layout.preferredHeight
 
@@ -609,12 +536,9 @@ PlasmoidItem {
             id: column
             anchors.fill: parent
             anchors.margins: Kirigami.Units.gridUnit
-            // footer ToolButtons carry ~7px of internal bottom padding, so the
-            // visual gap below them matches the top margin with less real margin
             anchors.bottomMargin: Math.round(Kirigami.Units.gridUnit * 0.6)
             spacing: Math.round(Kirigami.Units.gridUnit * 0.55)
 
-            // ---------- header ----------
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing * 2
@@ -656,7 +580,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- hero: monthly total ----------
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
@@ -708,7 +631,6 @@ PlasmoidItem {
                     }
                 }
 
-                // previous month total + projected delta against it
                 RowLayout {
                     spacing: 0
                     visible: root.loaded && root.prevMonth > 0
@@ -726,7 +648,6 @@ PlasmoidItem {
                     }
                 }
 
-                // monthly budget progress (only when a budget is configured)
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.smallSpacing
@@ -755,7 +676,6 @@ PlasmoidItem {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.smallSpacing
-                    // one provider fills the whole bar: nothing to compare
                     visible: root.providers.length > 1
                     height: 6
                     radius: 3
@@ -801,7 +721,6 @@ PlasmoidItem {
                     }
                 }
 
-                // last 7 days (bars scale to the week's peak, today highlighted)
                 Item {
                     id: sparkBox
                     Layout.fillWidth: true
@@ -809,7 +728,6 @@ PlasmoidItem {
                     visible: root.spark.length > 0
                     implicitHeight: Kirigami.Units.gridUnit * 3.2
                     property real peak: Math.max.apply(null, root.spark.map(function(s) { return s.c }).concat([0.01]))
-                    // bars grow from the baseline each time the popup opens
                     property real grow: 1
                     NumberAnimation on grow { from: 0; to: 1; duration: 600; easing.type: Easing.OutCubic; running: root.expanded }
 
@@ -852,7 +770,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- top projects this month (toggled by the folder button) ----------
             Rectangle {
                 Layout.fillWidth: true
                 visible: root.showProjects && root.projects.length > 0
@@ -936,7 +853,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- current session (live 5h limit) ----------
             Rectangle {
                 Layout.fillWidth: true
                 radius: 12
@@ -990,7 +906,6 @@ PlasmoidItem {
                         }
                     }
 
-                    // pace warning: only when the current burn overshoots the window
                     PC3.Label {
                         readonly property string eta: root.timeToFull()
                         Layout.fillWidth: true
@@ -1015,8 +930,6 @@ PlasmoidItem {
                         font.pixelSize: fullRep.microSize
                         wrapMode: Text.WordWrap
                     }
-                    // the API locked this window: the reason is the only place
-                    // that says why the usage stopped going through
                     PC3.Label {
                         Layout.fillWidth: true
                         visible: root.live !== null && !!root.live.session.locked
@@ -1036,7 +949,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- recent sessions (toggled by the history button) ----------
             Rectangle {
                 Layout.fillWidth: true
                 visible: root.showHistory && root.history.length > 0
@@ -1085,7 +997,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- monthly history (toggled by the history button) ----------
             Rectangle {
                 Layout.fillWidth: true
                 visible: root.showHistory && root.months.length > 1
@@ -1152,8 +1063,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- weekly limits (live) ----------
-            // two per row: accounts can have more than one scoped model limit
             GridLayout {
                 Layout.fillWidth: true
                 visible: root.live !== null
@@ -1175,12 +1084,10 @@ PlasmoidItem {
                     Rectangle {
                         id: weeklyCard
                         Layout.fillWidth: true
-                        // an odd last card spans the row instead of sitting half width
                         Layout.columnSpan: (index === weeklyRep.count - 1 && weeklyRep.count % 2 === 1) ? 2 : 1
                         readonly property bool wide: Layout.columnSpan === 2
                         radius: 12
                         color: root.surfaceColor
-                        // the limit the API marks active is the one biting now
                         border.color: modelData.data.active ? root.sevColor(modelData.data.pct) : root.borderColor
                         border.width: modelData.data.active ? 2 : 1
                         implicitHeight: weeklyCol.implicitHeight + Kirigami.Units.gridUnit
@@ -1224,7 +1131,6 @@ PlasmoidItem {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: Kirigami.Units.smallSpacing
-                                // half-width cards have no room for the "resets" word
                                 PC3.Label {
                                     text: (weeklyCard.wide ? root.tr("resets") + " " : "")
                                           + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
@@ -1233,7 +1139,6 @@ PlasmoidItem {
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
-                                // pace at the current burn: when it hits 100%, or where it lands at the reset
                                 PC3.Label {
                                     readonly property var pace: root.weeklyPace(modelData.data)
                                     visible: pace !== null
@@ -1258,11 +1163,8 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- extra usage credits (only when enabled on the account) ----------
             Rectangle {
                 id: extraCard
-                // extra_usage when the account has credits enabled, spend as
-                // the fallback for accounts that only report the cash balance
                 readonly property var extra: root.live ? (root.live.extra || root.live.spend || null) : null
                 readonly property real pct: extra ? extra.pct : 0
                 Layout.fillWidth: true
@@ -1321,7 +1223,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- subscriptions ----------
             Rectangle {
                 Layout.fillWidth: true
                 visible: root.allSubscriptions().length > 0
@@ -1380,7 +1281,6 @@ PlasmoidItem {
                             font.pixelSize: fullRep.smallSize
                         }
                     }
-                    // what this month's claude usage would cost at API rates vs the plan
                     PC3.Label {
                         visible: root.subscription !== null && root.claudeMonth > 0 && root.subscription.price > 0
                         text: root.tr("apiEq") + " " + root.money(root.claudeMonth) + "  ·  "
@@ -1393,7 +1293,6 @@ PlasmoidItem {
                 }
             }
 
-            // ---------- footer: utility actions ----------
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing

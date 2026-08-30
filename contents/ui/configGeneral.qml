@@ -15,7 +15,6 @@ Kirigami.FormLayout {
     property string cfg_extraSubscriptions
     property bool cfg_followSystemTheme
 
-    // defaults mirrored from config/main.xml (silences plasmashell warnings)
     property string cfg_languageDefault: ""
     property string cfg_panelDisplayDefault: "session"
     property int cfg_notifyThresholdDefault: 85
@@ -27,7 +26,6 @@ Kirigami.FormLayout {
 
     readonly property string donateUrl: "https://www.paypal.com/donate/?business=SR28XBBCYSPHE&no_recurring=0&item_name=Help+me+buy+a+coffee.&currency_code=USD"
 
-    // breathing room above the first row
     Item { implicitHeight: Kirigami.Units.largeSpacing * 2 }
 
     QQC2.ComboBox {
