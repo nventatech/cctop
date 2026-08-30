@@ -261,6 +261,20 @@ PlasmoidItem {
         return { full: t }
     }
 
+    // the API stamps resets_at with the microsecond of the request, so the
+    // string differs on every poll and can even cross a minute boundary:
+    // round to the minute before it is used to identify a window
+    function roundReset(s) {
+        var t = Date.parse(s)
+        return isNaN(t) ? s : new Date(Math.round(t / 60000) * 60000).toISOString()
+    }
+    function normalizeLive(l) {
+        var w = [l.session, l.weekly].concat(l.weekly_models || [])
+        for (var i = 0; i < w.length; i++)
+            if (w[i] && w[i].resets_at) w[i].resets_at = roundReset(w[i].resets_at)
+        return l
+    }
+
     // a window that was above the threshold and now reports a new reset time
     // has been freed: say so once, so the user knows they can go again
     function checkResets(prev, cur) {
@@ -429,8 +443,9 @@ PlasmoidItem {
                 // token expired = live comes back null: keep showing the last
                 // known limits (marked stale) instead of dropping the cards
                 if (j.live) {
-                    root.checkResets(root.live, j.live)
-                    root.live = j.live
+                    var lv = root.normalizeLive(j.live)
+                    root.checkResets(root.live, lv)
+                    root.live = lv
                     root.liveStale = false
                 } else if (root.live) {
                     root.liveStale = true

@@ -5,6 +5,10 @@
 Fixed
 - Half-width weekly cards cut the reset time ("resets Sat …"); they now show
   only the time, full-width cards keep the word
+- Repeated threshold notifications and false "limit reset" ones: the API
+  stamps the reset time with the microsecond of the request, so every poll
+  looked like a new window. Reset times are now rounded to the minute, which
+  also fixes the odd "resets Mon 19:59" instead of 20:00
 
 
 ## 1.5.0 — 2026-08-26
