@@ -592,7 +592,7 @@ PlasmoidItem {
     // ===================== POPUP =====================
     fullRepresentation: Item {
         id: fullRep
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 23
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 27
         Layout.preferredHeight: column.implicitHeight + Kirigami.Units.gridUnit + column.anchors.bottomMargin
         Layout.minimumWidth: Layout.preferredWidth
         Layout.minimumHeight: Layout.preferredHeight
@@ -1221,13 +1221,10 @@ PlasmoidItem {
                                     color: root.sevColor(modelData.data.pct)
                                 }
                             }
-                            // half-width cards have no room for both lines side
-                            // by side: the pace goes under the reset time
-                            GridLayout {
+                            RowLayout {
                                 Layout.fillWidth: true
-                                columns: weeklyCard.wide ? 2 : 1
-                                columnSpacing: Kirigami.Units.smallSpacing
-                                rowSpacing: 0
+                                spacing: Kirigami.Units.smallSpacing
+                                // half-width cards have no room for the "resets" word
                                 PC3.Label {
                                     text: (weeklyCard.wide ? root.tr("resets") + " " : "")
                                           + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")

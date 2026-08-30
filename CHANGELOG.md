@@ -25,7 +25,8 @@ Fixed
   stamps the reset time with the microsecond of the request, so every poll
   looked like a new window. Reset times are now rounded to the minute, which
   also fixes the odd "resets Mon 19:59" instead of 20:00
-- Half-width weekly cards still cut the day: the pace now goes on its own line
+- Half-width weekly cards still cut the day: the popup is wider (27 grid units
+  instead of 23), which leaves the reset time and the pace on one line
 
 
 ## 1.5.0 — 2026-08-26
