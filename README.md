@@ -44,7 +44,9 @@ is local: no accounts, no API keys, no telemetry.
   80% and 100%
 - **Privacy mode** — the eye button masks every money value (panel included)
 - **Desktop notifications** when the session or the weekly limits cross a
-  configurable threshold, and when such a window resets
+  configurable threshold, again at 95% and 100%, when the pace is set to
+  overshoot the window, when the account is locked out of a window, and when
+  such a window resets
 - **CSV export** of the last 30 days per day and model (footer button)
 - **Morning summary** — optional systemd timer with yesterday's spend, the
   7-day total and the weekly limit (see below)
@@ -55,13 +57,17 @@ is local: no accounts, no API keys, no telemetry.
 
 ### 🔌 Providers
 
-| Provider | Source |
-|---|---|
-| Claude (Claude Code) | local JSONL logs + local OAuth token |
-| OpenAI (Codex CLI) | local session logs (`~/.codex`) |
-| Gemini (Gemini CLI) | local telemetry log (`~/.gemini`) |
+| Provider | Source | Status |
+|---|---|---|
+| Claude (Claude Code) | local JSONL logs + local OAuth token | full |
+| OpenAI (Codex CLI) | local session logs (`~/.codex`) | best effort |
+| Gemini (Gemini CLI) | local telemetry log (`~/.gemini`) | best effort |
 
 Providers appear automatically when their CLI is used on the machine.
+
+Best effort means the reader was written from the log format and tested with
+synthetic fixtures only — the per-model cost may be off. Reports with a real
+log sample are welcome.
 
 ## 📋 Requirements
 

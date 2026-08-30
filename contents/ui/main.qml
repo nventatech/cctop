@@ -9,6 +9,7 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PC3
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
+import "strings.js" as Strings
 
 PlasmoidItem {
     id: root
@@ -48,56 +49,7 @@ PlasmoidItem {
         return "en"
     }
     readonly property string lang: Plasmoid.configuration.language || systemLang()
-    readonly property var strings: ({
-        en: {
-            loading: "loading…", month: "this month", today: "today",
-            session: "CURRENT SESSION", weeklyAll: "ALL MODELS", weeklyModel: "MODEL",
-            resets: "resets", inWord: "in", thisWindow: "this window",
-            noSession: "no live data", subs: "SUBSCRIPTIONS", subsTotal: "Total",
-            perMonth: "/mo", tipMonth: "this month", tipSession: "session",
-            hist: "RECENT SESSIONS", budget: "budget", projected: "projected",
-            topProjects: "TOP PROJECTS", prevMonth: "last month",
-            byModel: "BY MODEL", months6: "LAST 6 MONTHS",
-            extra: "EXTRA USAGE", credits: "credits", pace: "at this pace",
-            limitFull: "hits 100%", updated: "updated", agoSuffix: "ago",
-            stale: "collector failed, showing last data",
-            d7: "last 7 days", d30: "last 30 days", apiEq: "API-equivalent",
-            planValue: "plan value", limitReset: "limit reset", exportCsv: "export CSV",
-            atReset: "at reset", justNow: "just now"
-        },
-        pt_BR: {
-            loading: "carregando…", month: "este mês", today: "hoje",
-            session: "SESSÃO ATUAL", weeklyAll: "TODOS OS MODELOS", weeklyModel: "MODELO",
-            resets: "reseta", inWord: "em", thisWindow: "nesta janela",
-            noSession: "sem dados ao vivo", subs: "ASSINATURAS", subsTotal: "Total",
-            perMonth: "/mês", tipMonth: "neste mês", tipSession: "sessão",
-            hist: "SESSÕES RECENTES", budget: "orçamento", projected: "projeção",
-            topProjects: "TOP PROJETOS", prevMonth: "mês passado",
-            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
-            extra: "USO EXTRA", credits: "créditos", pace: "neste ritmo",
-            limitFull: "bate 100%", updated: "atualizado há", agoSuffix: "",
-            stale: "coleta falhou, mostrando último dado",
-            d7: "últimos 7 dias", d30: "últimos 30 dias", apiEq: "equivalente em API",
-            planValue: "do plano", limitReset: "limite resetou", exportCsv: "exportar CSV",
-            atReset: "no reset", justNow: "agora"
-        },
-        es: {
-            loading: "cargando…", month: "este mes", today: "hoy",
-            session: "SESIÓN ACTUAL", weeklyAll: "TODOS LOS MODELOS", weeklyModel: "MODELO",
-            resets: "se reinicia", inWord: "en", thisWindow: "en esta ventana",
-            noSession: "sin datos en vivo", subs: "SUSCRIPCIONES", subsTotal: "Total",
-            perMonth: "/mes", tipMonth: "en este mes", tipSession: "sesión",
-            hist: "SESIONES RECIENTES", budget: "presupuesto", projected: "proyección",
-            topProjects: "TOP PROYECTOS", prevMonth: "mes pasado",
-            byModel: "POR MODELO", months6: "ÚLTIMOS 6 MESES",
-            extra: "USO EXTRA", credits: "créditos", pace: "a este ritmo",
-            limitFull: "llega a 100%", updated: "actualizado hace", agoSuffix: "",
-            stale: "la recolección falló, mostrando el último dato",
-            d7: "últimos 7 días", d30: "últimos 30 días", apiEq: "equivalente en API",
-            planValue: "del plan", limitReset: "límite reiniciado", exportCsv: "exportar CSV",
-            atReset: "al reinicio", justNow: "ahora"
-        }
-    })
+    readonly property var strings: Strings.dict
     readonly property var localeNames: ({ en: "en_US", pt_BR: "pt_BR", es: "es_ES" })
     function tr(key) { return (strings[lang] || strings.en)[key] }
 
@@ -275,30 +227,49 @@ PlasmoidItem {
         return l
     }
 
+    // every weekly window of a payload: all models, plus each scoped model
+    function weeklyChecks(l) {
+        var out = l && l.weekly ? [{ key: "all", data: l.weekly, label: tr("weeklyAll") }] : []
+        var wm = (l && l.weekly_models) || []
+        for (var i = 0; i < wm.length; i++)
+            out.push({ key: wm[i].model || ("scoped" + i), data: wm[i],
+                       label: scopedModelLabel(wm[i].model).toUpperCase() })
+        return out
+    }
+
+    // "20:00" for a window closing within the day, "Mon 20:00" further out
+    function resetLabel(iso) {
+        var d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        return d.getTime() - now < 24 * 3600 * 1000
+            ? Qt.formatTime(d, "HH:mm")
+            : d.toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm")
+    }
+
     // a window that was above the threshold and now reports a new reset time
-    // has been freed: say so once, so the user knows they can go again
+    // has been freed: say so once, with how full the new window already is
+    // and when it closes
     function checkResets(prev, cur) {
         if (!prev || !cur) return
         var thS = Plasmoid.configuration.notifyThreshold
         var thW = Plasmoid.configuration.notifyThresholdWeekly
         if (thS > 0 && prev.session && cur.session
             && prev.session.resets_at !== cur.session.resets_at && prev.session.pct >= thS)
-            notify("Claude " + tr("session").toLowerCase() + " · " + tr("limitReset"))
+            notifyReset("Claude " + tr("session").toLowerCase(), cur.session)
         if (thW <= 0) return
         var before = {}
-        if (prev.weekly) before["all"] = prev.weekly
-        var pw = prev.weekly_models || []
-        for (var i = 0; i < pw.length; i++) before[pw[i].model || ("scoped" + i)] = pw[i]
-        var checks = cur.weekly ? [{ key: "all", data: cur.weekly, label: tr("weeklyAll") }] : []
-        var wm = cur.weekly_models || []
-        for (var j = 0; j < wm.length; j++)
-            checks.push({ key: wm[j].model || ("scoped" + j), data: wm[j],
-                          label: scopedModelLabel(wm[j].model).toUpperCase() })
+        var pw = weeklyChecks(prev)
+        for (var i = 0; i < pw.length; i++) before[pw[i].key] = pw[i].data
+        var checks = weeklyChecks(cur)
         for (var k = 0; k < checks.length; k++) {
             var old = before[checks[k].key]
             if (old && old.resets_at !== checks[k].data.resets_at && old.pct >= thW)
-                notify(checks[k].label + " · " + tr("limitReset"))
+                notifyReset(checks[k].label, checks[k].data)
         }
+    }
+    function notifyReset(label, data) {
+        notify(label + " · " + tr("limitReset") + " · " + data.pct + "% · "
+               + tr("resets") + " " + resetLabel(data.resets_at))
     }
 
     // single-quoted shell argument: notification text carries API and log data
@@ -368,43 +339,116 @@ PlasmoidItem {
         return live ? live.session.pct + "%" : (block ? money(block.costUSD) : "cc")
     }
 
-    // one desktop notification per 5h window when crossing the threshold.
-    // The window's reset time is the key and it is stored in the config, so
-    // a plasmashell restart does not repeat the notification
+    // levels notified inside one window: the configured threshold, then 95%
+    // and 100%, so a window that keeps filling warns again instead of going
+    // quiet after the first crossing
+    function notifyLevel(pct, th) {
+        var lv = 0
+        var steps = [th, 95, 100]
+        for (var i = 0; i < steps.length; i++)
+            if (steps[i] >= th && pct >= steps[i] && steps[i] > lv) lv = steps[i]
+        return lv
+    }
+
+    // window state is "<resets_at>|<highest level notified>"; the reset time
+    // is part of it so a new window starts over, and it lives in the config
+    // so a plasmashell restart does not repeat the notification
+    function levelKey(resetsAt, lv) { return String(resetsAt || "") + "|" + lv }
+    function levelPending(saved, resetsAt, lv) {
+        var p = String(saved || "").split("|")
+        return !(p[0] === String(resetsAt || "") && Number(p[1]) >= lv)
+    }
+
+    // one notification per level per 5h window
     function checkNotify() {
         var th = Plasmoid.configuration.notifyThreshold
         if (th <= 0 || !live || liveStale) return
-        if (live.session.pct < th) return
-        var key = String(live.session.resets_at || "")
-        if (Plasmoid.configuration.notifiedSession === key) return
-        Plasmoid.configuration.notifiedSession = key
-        notify("Claude " + live.session.pct + "% · " + tr("resets") + " "
-               + Qt.formatTime(new Date(live.session.resets_at), "HH:mm"))
+        var lv = notifyLevel(live.session.pct, th)
+        if (lv === 0) return
+        var s = live.session
+        if (!levelPending(Plasmoid.configuration.notifiedSession, s.resets_at, lv)) return
+        Plasmoid.configuration.notifiedSession = levelKey(s.resets_at, lv)
+        notify("Claude " + s.pct + "% · " + tr("resets") + " " + resetLabel(s.resets_at))
     }
 
-    // one notification per weekly window: all models, plus each scoped model
+    // same levels for every weekly window: all models, plus each scoped model
     function checkWeeklyNotify() {
         var th = Plasmoid.configuration.notifyThresholdWeekly
         if (th <= 0 || !live || liveStale) return
-        var checks = [{ data: live.weekly, key: "all", label: tr("weeklyAll") }]
-        var wm = live.weekly_models || []
-        for (var i = 0; i < wm.length; i++)
-            checks.push({ data: wm[i], key: wm[i].model || ("scoped" + i),
-                          label: scopedModelLabel(wm[i].model).toUpperCase() })
+        var checks = weeklyChecks(live)
         var flags = {}
         try { flags = JSON.parse(Plasmoid.configuration.notifiedWeekly || "{}") } catch (e) {}
         var changed = false
         for (var j = 0; j < checks.length; j++) {
             var c = checks[j]
-            if (!c.data || c.data.pct < th) continue
-            var key = String(c.data.resets_at || "")
-            if (flags[c.key] === key) continue
-            flags[c.key] = key
+            if (!c.data) continue
+            var lv = notifyLevel(c.data.pct, th)
+            if (lv === 0 || !levelPending(flags[c.key], c.data.resets_at, lv)) continue
+            flags[c.key] = levelKey(c.data.resets_at, lv)
             changed = true
             notify(c.label + " " + c.data.pct + "% · " + tr("resets") + " "
-                   + new Date(c.data.resets_at).toLocaleString(Qt.locale(localeNames[lang] || "en_US"), "ddd HH:mm"))
+                   + resetLabel(c.data.resets_at))
         }
         if (changed) Plasmoid.configuration.notifiedWeekly = JSON.stringify(flags)
+    }
+
+    // the current burn overshoots the window: warn once per window, while
+    // there is still time to slow down. Windows already past the threshold
+    // are skipped, they notify on their own and would only repeat the news
+    function checkPaceNotify() {
+        if (!live || liveStale) return
+        var flags = {}
+        try { flags = JSON.parse(Plasmoid.configuration.notifiedPace || "{}") } catch (e) {}
+        var changed = false
+        var thS = Plasmoid.configuration.notifyThreshold
+        var eta = timeToFull()
+        var s = live.session
+        if (thS > 0 && eta !== "" && s.pct < thS
+            && flags["session"] !== String(s.resets_at)) {
+            flags["session"] = String(s.resets_at)
+            changed = true
+            notifyPace("Claude " + tr("session").toLowerCase(), eta)
+        }
+        var thW = Plasmoid.configuration.notifyThresholdWeekly
+        if (thW > 0) {
+            var checks = weeklyChecks(live)
+            for (var i = 0; i < checks.length; i++) {
+                var c = checks[i]
+                var p = weeklyPace(c.data)
+                if (!p || !p.full || c.data.pct >= thW) continue
+                if (flags[c.key] === String(c.data.resets_at)) continue
+                flags[c.key] = String(c.data.resets_at)
+                changed = true
+                notifyPace(c.label, p.full)
+            }
+        }
+        if (changed) Plasmoid.configuration.notifiedPace = JSON.stringify(flags)
+    }
+    function notifyPace(label, eta) {
+        notify(label + " · " + tr("pace") + ": " + tr("limitFull") + " "
+               + tr("inWord") + " " + eta)
+    }
+
+    // the account is locked out of a window: the API says why, and that is
+    // worth one notification, once per window
+    function checkLocked() {
+        if (!live || liveStale) return
+        var flags = {}
+        try { flags = JSON.parse(Plasmoid.configuration.notifiedLocked || "{}") } catch (e) {}
+        var changed = false
+        var checks = [{ key: "session", data: live.session,
+                        label: "Claude " + tr("session").toLowerCase() }]
+                     .concat(weeklyChecks(live))
+        for (var i = 0; i < checks.length; i++) {
+            var c = checks[i]
+            if (!c.data || !c.data.locked) continue
+            if (flags[c.key] === String(c.data.resets_at)) continue
+            flags[c.key] = String(c.data.resets_at)
+            changed = true
+            notify(c.label + " · " + tr("locked") + ": " + c.data.locked + " · "
+                   + tr("resets") + " " + resetLabel(c.data.resets_at))
+        }
+        if (changed) Plasmoid.configuration.notifiedLocked = JSON.stringify(flags)
     }
 
     // one notification per month at 80% and one at 100% of the budget;
@@ -479,6 +523,8 @@ PlasmoidItem {
                 root.fetchFailed = false
                 root.checkNotify()
                 root.checkWeeklyNotify()
+                root.checkPaceNotify()
+                root.checkLocked()
                 root.checkBudget()
             } catch (e) { root.fetchFailed = true }
         }
@@ -969,6 +1015,18 @@ PlasmoidItem {
                         font.pixelSize: fullRep.microSize
                         wrapMode: Text.WordWrap
                     }
+                    // the API locked this window: the reason is the only place
+                    // that says why the usage stopped going through
+                    PC3.Label {
+                        Layout.fillWidth: true
+                        visible: root.live !== null && !!root.live.session.locked
+                        text: root.live && root.live.session.locked
+                            ? root.tr("locked") + ": " + root.live.session.locked : ""
+                        color: root.alertColor
+                        font.pixelSize: fullRep.microSize
+                        wrapMode: Text.WordWrap
+                    }
+
                     PC3.Label {
                         visible: root.live === null && root.loaded
                         text: root.tr("noSession")
@@ -1163,10 +1221,13 @@ PlasmoidItem {
                                     color: root.sevColor(modelData.data.pct)
                                 }
                             }
-                            RowLayout {
+                            // half-width cards have no room for both lines side
+                            // by side: the pace goes under the reset time
+                            GridLayout {
                                 Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-                                // half-width cards have no room for the "resets" word
+                                columns: weeklyCard.wide ? 2 : 1
+                                columnSpacing: Kirigami.Units.smallSpacing
+                                rowSpacing: 0
                                 PC3.Label {
                                     text: (weeklyCard.wide ? root.tr("resets") + " " : "")
                                           + new Date(modelData.data.resets_at).toLocaleString(Qt.locale(root.localeNames[root.lang] || "en_US"), "ddd HH:mm")
@@ -1185,6 +1246,15 @@ PlasmoidItem {
                                     color: pace && pace.full ? root.warnColor : root.mutedColor
                                     font.pixelSize: fullRep.microSize
                                 }
+                            }
+                            PC3.Label {
+                                Layout.fillWidth: true
+                                visible: !!modelData.data.locked
+                                text: modelData.data.locked
+                                    ? root.tr("locked") + ": " + modelData.data.locked : ""
+                                color: root.alertColor
+                                font.pixelSize: fullRep.microSize
+                                wrapMode: Text.WordWrap
                             }
                         }
                     }

@@ -21,3 +21,6 @@ check() {
 check openai 7.75
 # 1M input gemini-2.5-flash * 0.3 + 1M output gemini-2.5-pro * 10
 check gemini 10.3
+
+# pure notification helpers, read straight out of main.qml
+node "$DIR/notify.js"

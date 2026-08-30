@@ -77,10 +77,15 @@ live='null'
 DBG="$CACHE_DIR/debug.log"
 # the payload shape is part of the name: an upgrade must not read a cache
 # written by the previous version (it would drop the scoped limits for 4 min)
-CACHE="$CACHE_DIR/live-v2.json"
+CACHE="$CACHE_DIR/live-v3.json"
 cacheAge=999999
 [ -s "$CACHE" ] && cacheAge=$(( $(date +%s) - $(stat -c %Y "$CACHE") ))
-if [ "$cacheAge" -lt 240 ]; then
+# 4 min is fine while there is room left, but near the limit a 4 min old
+# percentage is the one that misleads: refresh every minute from 90% on
+liveTtl=240
+if [ -s "$CACHE" ] && jq -e '[.session.pct, .weekly.pct, (.weekly_models // [])[].pct]
+    | max >= 90' "$CACHE" >/dev/null 2>&1; then liveTtl=60; fi
+if [ "$cacheAge" -lt "$liveTtl" ]; then
   live=$(cat "$CACHE")
 else
   tok=$(jq -r '.claudeAiOauth.accessToken // empty' "$CREDS" 2>/dev/null)
@@ -105,9 +110,11 @@ else
         | def lim(k): ($l | map(select(.kind == k)) | .[0] // null);
           def flags(x): {active: (x.is_active // false), severity: (x.severity // "normal")};
         {
-          session: ({pct: (.five_hour.utilization // 0), resets_at: .five_hour.resets_at}
+          session: ({pct: (.five_hour.utilization // 0), resets_at: .five_hour.resets_at,
+                     locked: (.five_hour.locked_reason // null)}
                     + flags(lim("session"))),
-          weekly:  ({pct: (.seven_day.utilization // 0), resets_at: .seven_day.resets_at}
+          weekly:  ({pct: (.seven_day.utilization // 0), resets_at: .seven_day.resets_at,
+                     locked: (.seven_day.locked_reason // null)}
                     + flags(lim("weekly_all"))),
           weekly_models: [ $l[] | select(.kind == "weekly_scoped")
                            | {pct: .percent, resets_at: .resets_at,

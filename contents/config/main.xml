@@ -38,6 +38,12 @@
         <entry name="notifiedWeekly" type="String">
             <default>{}</default>
         </entry>
+        <entry name="notifiedPace" type="String">
+            <default>{}</default>
+        </entry>
+        <entry name="notifiedLocked" type="String">
+            <default>{}</default>
+        </entry>
         <entry name="notifiedBudget" type="String">
             <default></default>
         </entry>

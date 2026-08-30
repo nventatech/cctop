@@ -2,6 +2,22 @@
 
 ## Unreleased (1.6.0)
 
+Added
+- Threshold notifications escalate: the configured threshold, then 95% and
+  100%, instead of one warning per window
+- Pace notification when the current burn is set to hit 100% before the
+  window closes, while there is still time to slow down
+- Lockout reason from the API on the session and weekly cards, with a
+  notification
+- Reset notifications say how full the new window already is and when it
+  closes
+
+Changed
+- Near a limit (90% or more) the live data refreshes every minute instead of
+  every four, so the percentage on screen is the one that matters
+- Codex and Gemini are marked best effort in the README: their readers are
+  validated with synthetic fixtures only
+
 Fixed
 - Half-width weekly cards cut the reset time ("resets Sat …"); they now show
   only the time, full-width cards keep the word
@@ -9,6 +25,7 @@ Fixed
   stamps the reset time with the microsecond of the request, so every poll
   looked like a new window. Reset times are now rounded to the minute, which
   also fixes the odd "resets Mon 19:59" instead of 20:00
+- Half-width weekly cards still cut the day: the pace now goes on its own line
 
 
 ## 1.5.0 — 2026-08-26
