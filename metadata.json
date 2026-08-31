@@ -11,7 +11,7 @@
         "Id": "com.nventatech.cctop",
         "License": "GPL-3.0+",
         "Name": "cctop",
-        "Version": "1.5.0",
+        "Version": "1.6.0",
         "Website": "https://github.com/nventatech/cctop"
     },
     "KPackageStructure": "Plasma/Applet",

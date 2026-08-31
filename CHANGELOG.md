@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (1.6.0)
+## 1.6.0 — 2026-08-31
 
 Added
 - Threshold notifications escalate: the configured threshold, then 95% and
