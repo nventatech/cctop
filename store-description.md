@@ -1,7 +1,7 @@
 # Descrição da KDE Store — cctop
 
-Um arquivo, quatro campos da loja. O que está no ar hoje é o texto da 1.4.0
-(2026-08-15); a DESCRIPTION abaixo já é a versão pra colar quando a 1.6.0 sair.
+Um arquivo, quatro campos da loja. O que está no ar hoje é o texto da 1.6.0
+(2026-08-31).
 Ao publicar: colar DESCRIPTION no campo de descrição, colar a entrada nova do
 CHANGELOG no campo de changelog, e atualizar a linha "no ar desde" aqui.
 
