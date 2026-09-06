@@ -1,6 +1,6 @@
-# Descrição da KDE Store — cctop
+# Descrição das lojas — cctop (KDE Store e extensions.gnome.org)
 
-Um arquivo, quatro campos da loja. O que está no ar hoje é o texto da 1.6.0
+Um arquivo, os campos das duas lojas. Seção EGO no fim. O que está no ar hoje é o texto da 1.6.0
 (2026-08-31).
 Ao publicar: colar DESCRIPTION no campo de descrição, colar a entrada nova do
 CHANGELOG no campo de changelog, e atualizar a linha "no ar desde" aqui.
@@ -60,6 +60,14 @@ POPUP
 • English, Português (Brasil), Español
 
 Requires Plasma 6, jq, curl and Node.js or Bun. Claude data needs Claude Code installed. Providers appear automatically when their CLI is used on the machine.
+
+Also available as a GNOME Shell extension, same repository: github.com/nventatech/cctop
+
+=== CHANGELOG (1.7.0, rascunho) ===
+
+GNOME Shell extension in the same repository, with the same panel indicator,
+popup, notifications and settings. The repository is now split into plasma/,
+gnome/ and shared/. No change in the widget itself.
 
 === CHANGELOG (1.6.0) ===
 
@@ -123,3 +131,25 @@ subscription detection.
   6 meses, valor do plano, níveis de notificação, aviso de ritmo por
   notificação e export CSV. A ressalva de best effort do Codex/Gemini fica só
   no README, fora da loja.
+
+## extensions.gnome.org (EGO)
+
+Campos do upload: só o zip. Nome, descrição, url e versões do shell vêm do
+`metadata.json`. A descrição da página é o campo `description` do metadata
+(texto plano, curto). Screenshot é enviado na página da extensão depois da
+aprovação. Versão é atribuída pela EGO (não pôr `version` no metadata;
+`version-name` é o que aparece para o usuário).
+
+=== EGO metadata description (atual) ===
+
+AI usage and cost monitor: Claude Code live limits, monthly spend per provider, subscriptions. 100% local data.
+
+=== EGO texto longo (pra página, se a EGO pedir na review) ===
+
+AI usage and cost monitor for the top bar. Tracks what your AI coding tools really cost with 100% local data: no accounts, no API keys, no telemetry.
+
+Top bar: live Claude Code session usage % (green → yellow → red), weekly limit %, today's spend or subscriptions total. Scroll to cycle modes.
+
+Popup: monthly spend per provider (Claude, OpenAI/Codex CLI, Gemini CLI), end-of-month projection, live 5h and weekly limits with pace warning and lockout reason, extra usage credits, top projects and by-model breakdown, last 7 days and 6 months charts, recent sessions, subscriptions and plan value, monthly budget, notifications, CSV export, privacy mode. English, Português (Brasil), Español.
+
+Requires jq, curl and ccusage (Node.js or Bun). Claude data needs Claude Code installed. The extension runs the bundled collector script (bash) and calls the Claude usage endpoint with the OAuth token Claude Code already keeps locally.

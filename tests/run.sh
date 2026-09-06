@@ -12,7 +12,7 @@ sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$now\"/" "$tmp"/home/.codex/s
 sed -i "s/\"timeUnixNano\":\"[0-9]*\"/\"timeUnixNano\":\"$nano\"/g" "$tmp/home/.gemini/telemetry.log"
 touch "$tmp"/home/.codex/sessions/2026/08/*.jsonl
 
-out=$(HOME="$tmp/home" XDG_CACHE_HOME="$tmp/cache" bash "$DIR/../contents/code/fetch.sh")
+out=$(HOME="$tmp/home" XDG_CACHE_HOME="$tmp/cache" bash "$DIR/../shared/code/fetch.sh")
 check() {
   local got; got=$(jq -r ".providers[] | select(.id == \"$1\") | .costMonth" <<<"$out")
   if [ "$got" = "$2" ]; then echo "ok   $1 = $got"; else echo "FAIL $1: expected $2, got $got"; exit 1; fi
@@ -24,3 +24,6 @@ check gemini 10.3
 
 # pure notification helpers, read straight out of main.qml
 node "$DIR/notify.js"
+
+# pure helpers of the GNOME extension
+node "$DIR/logic.mjs"

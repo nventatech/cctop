@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 — unreleased
+
+Added
+- GNOME Shell extension (`gnome/`, GNOME 48 to 50) with the same panel
+  indicator, popup, notifications and settings as the Plasma widget. The
+  collectors are shared; `summary.sh` reads the extension settings when
+  installed under GNOME
+
 ## 1.6.0 — 2026-08-31
 
 Added

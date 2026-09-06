@@ -1,0 +1,134 @@
+/* cctop - GNOME Shell extension styles. Copyright (C) 2026 NventaTech — GPL-3.0-or-later */
+
+.cctop-panel-label {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+.cctop-panel-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
+.cctop-boxpointer {
+    -arrow-background-color: #1a1a1d;
+    -arrow-border-color: #34343a;
+}
+
+.cctop-root {
+    width: 456px;
+    padding: 14px 15px 8px 15px;
+    spacing: 9px;
+}
+
+.cctop-dark {
+    color: #eaeaee;
+}
+
+.cctop-card {
+    border-radius: 12px;
+    border-width: 1px;
+    padding: 10px 11px;
+    spacing: 6px;
+}
+
+.cctop-dark .cctop-card {
+    background-color: #242427;
+    border-color: #34343a;
+}
+
+.cctop-system .cctop-card {
+    background-color: rgba(128, 128, 128, 0.10);
+    border-color: rgba(128, 128, 128, 0.28);
+}
+
+.cctop-card-active {
+    border-width: 2px;
+}
+
+.cctop-title {
+    font-weight: bold;
+    font-size: 1.15em;
+}
+
+.cctop-hero {
+    font-weight: bold;
+    font-size: 2.4em;
+}
+
+.cctop-small {
+    font-size: 1em;
+}
+
+.cctop-micro {
+    font-size: 0.9em;
+}
+
+.cctop-heading {
+    font-size: 0.9em;
+    letter-spacing: 0.5px;
+}
+
+.cctop-bold {
+    font-weight: bold;
+}
+
+.cctop-pct {
+    font-weight: bold;
+    font-size: 1.45em;
+}
+
+.cctop-btn {
+    border-radius: 6px;
+    padding: 4px;
+}
+
+.cctop-btn:hover,
+.cctop-btn:focus {
+    background-color: rgba(128, 128, 128, 0.25);
+}
+
+.cctop-btn:checked {
+    background-color: rgba(128, 128, 128, 0.35);
+}
+
+.cctop-btn StIcon {
+    icon-size: 16px;
+}
+
+.cctop-separator {
+    height: 1px;
+}
+
+.cctop-dark .cctop-separator {
+    background-color: #34343a;
+}
+
+.cctop-system .cctop-separator {
+    background-color: rgba(128, 128, 128, 0.28);
+}
+
+.cctop-legend {
+    spacing: 12px;
+}
+
+.cctop-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+}
+
+.cctop-row {
+    spacing: 6px;
+}
+
+.cctop-grid {
+    spacing: 8px;
+}
+
+.cctop-chart-labels {
+    spacing: 4px;
+}

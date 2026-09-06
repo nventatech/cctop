@@ -1,0 +1,9 @@
+{
+    "uuid": "cctop@nventatech",
+    "name": "cctop",
+    "description": "AI usage and cost monitor: Claude Code live limits, monthly spend per provider, subscriptions. 100% local data.",
+    "version-name": "1.7.0",
+    "shell-version": ["48", "49", "50"],
+    "settings-schema": "org.gnome.shell.extensions.cctop",
+    "url": "https://github.com/nventatech/cctop"
+}

@@ -1,0 +1,58 @@
+// cctop - UI strings for the three supported languages.
+// Copyright (C) 2026 NventaTech — GPL-3.0-or-later
+
+export const dict = {
+    en: {
+        loading: 'loading…', month: 'this month', today: 'today',
+        session: 'CURRENT SESSION', weeklyAll: 'ALL MODELS', weeklyModel: 'MODEL',
+        resets: 'resets', inWord: 'in', thisWindow: 'this window',
+        noSession: 'no live data', subs: 'SUBSCRIPTIONS', subsTotal: 'Total',
+        perMonth: '/mo', tipMonth: 'this month', tipSession: 'session',
+        hist: 'RECENT SESSIONS', budget: 'budget', projected: 'projected',
+        topProjects: 'TOP PROJECTS', prevMonth: 'last month',
+        byModel: 'BY MODEL', months6: 'LAST 6 MONTHS',
+        extra: 'EXTRA USAGE', credits: 'credits', pace: 'at this pace',
+        limitFull: 'hits 100%', updated: 'updated', agoSuffix: 'ago',
+        stale: 'collector failed, showing last data',
+        d7: 'last 7 days', d30: 'last 30 days', apiEq: 'API-equivalent',
+        planValue: 'plan value', limitReset: 'limit reset', exportCsv: 'export CSV',
+        atReset: 'at reset', justNow: 'just now',
+        locked: 'locked',
+    },
+    pt_BR: {
+        loading: 'carregando…', month: 'este mês', today: 'hoje',
+        session: 'SESSÃO ATUAL', weeklyAll: 'TODOS OS MODELOS', weeklyModel: 'MODELO',
+        resets: 'reseta', inWord: 'em', thisWindow: 'nesta janela',
+        noSession: 'sem dados ao vivo', subs: 'ASSINATURAS', subsTotal: 'Total',
+        perMonth: '/mês', tipMonth: 'neste mês', tipSession: 'sessão',
+        hist: 'SESSÕES RECENTES', budget: 'orçamento', projected: 'projeção',
+        topProjects: 'TOP PROJETOS', prevMonth: 'mês passado',
+        byModel: 'POR MODELO', months6: 'ÚLTIMOS 6 MESES',
+        extra: 'USO EXTRA', credits: 'créditos', pace: 'neste ritmo',
+        limitFull: 'bate 100%', updated: 'atualizado há', agoSuffix: '',
+        stale: 'coleta falhou, mostrando último dado',
+        d7: 'últimos 7 dias', d30: 'últimos 30 dias', apiEq: 'equivalente em API',
+        planValue: 'do plano', limitReset: 'limite resetou', exportCsv: 'exportar CSV',
+        atReset: 'no reset', justNow: 'agora',
+        locked: 'bloqueado',
+    },
+    es: {
+        loading: 'cargando…', month: 'este mes', today: 'hoy',
+        session: 'SESIÓN ACTUAL', weeklyAll: 'TODOS LOS MODELOS', weeklyModel: 'MODELO',
+        resets: 'se reinicia', inWord: 'en', thisWindow: 'en esta ventana',
+        noSession: 'sin datos en vivo', subs: 'SUSCRIPCIONES', subsTotal: 'Total',
+        perMonth: '/mes', tipMonth: 'en este mes', tipSession: 'sesión',
+        hist: 'SESIONES RECIENTES', budget: 'presupuesto', projected: 'proyección',
+        topProjects: 'TOP PROYECTOS', prevMonth: 'mes pasado',
+        byModel: 'POR MODELO', months6: 'ÚLTIMOS 6 MESES',
+        extra: 'USO EXTRA', credits: 'créditos', pace: 'a este ritmo',
+        limitFull: 'llega a 100%', updated: 'actualizado hace', agoSuffix: '',
+        stale: 'la recolección falló, mostrando el último dato',
+        d7: 'últimos 7 días', d30: 'últimos 30 días', apiEq: 'equivalente en API',
+        planValue: 'del plan', limitReset: 'límite reiniciado', exportCsv: 'exportar CSV',
+        atReset: 'al reinicio', justNow: 'ahora',
+        locked: 'bloqueado',
+    },
+};
+
+export const locales = {en: 'en-US', pt_BR: 'pt-BR', es: 'es-ES'};

@@ -7,7 +7,7 @@ const assert = require("assert")
 const fs = require("fs")
 const path = require("path")
 
-const src = fs.readFileSync(path.join(__dirname, "../contents/ui/main.qml"), "utf8")
+const src = fs.readFileSync(path.join(__dirname, "../plasma/contents/ui/main.qml"), "utf8")
 function grab(name) {
   const start = src.indexOf("function " + name + "(")
   assert.ok(start >= 0, name + " not found in main.qml")

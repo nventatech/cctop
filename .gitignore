@@ -1,4 +1,6 @@
 *.plasmoid
 dist/
-media/
+media/*
+!media/*.png
 graphify-out/
+gnome/schemas/gschemas.compiled

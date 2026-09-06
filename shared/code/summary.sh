@@ -8,6 +8,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 
 widget_cfg() {
   local rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+  local schemas; schemas="$(cd "$DIR/.." && pwd)/schemas"
+  if [ -f "$schemas/gschemas.compiled" ]; then
+    GSETTINGS_SCHEMA_DIR="$schemas" gsettings get org.gnome.shell.extensions.cctop "$1" 2>/dev/null | tr -d "'"
+    return
+  fi
   [ -f "$rc" ] || return
   awk -v key="$1" '
     /^\[/ { group = $0; next }
