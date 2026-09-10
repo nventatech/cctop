@@ -45,11 +45,15 @@ for your desktop:
 - **Pace warning** — when the current burn rate hits 100% before the window
   resets, the session and weekly cards say how long you have left; otherwise
   the weekly cards show where the usage lands at the reset
+- **Codex quota** — Codex writes its own rate limit windows into its session
+  logs, so the popup shows one card per window (5h, weekly) with percentage,
+  reset time and pace, alongside the Claude cards. No request and no cookies;
+  the tradeoff is that it only refreshes when `codex` actually runs
 - **Extra usage credits** — usage credits card when the account has them on
 - **Recent sessions** — last sessions with model and cost
-- **Subscription auto-detection** — your Claude plan (Pro / Max 5x / Max 20x)
-  and your ChatGPT plan (Plus / Pro / Team, from the Codex CLI login) are read
-  from local CLI files
+- **Subscription auto-detection** — your Claude plan (Pro / Max 5x / Max 20x /
+  Team) and your ChatGPT plan (Plus / Pro / Team / Business, from the Codex CLI
+  login) are read from local CLI files
 - **Extra subscriptions** — add any other fixed AI cost in the settings, one
   per line (`Cursor Pro: 20`)
 - **Plan value** — this month's Claude usage at API rates next to what the
@@ -72,7 +76,7 @@ for your desktop:
 | Provider | Source | Status |
 |---|---|---|
 | Claude (Claude Code) | local JSONL logs + local OAuth token | full |
-| OpenAI (Codex CLI) | local session logs (`~/.codex`) | best effort |
+| OpenAI (Codex CLI) | local session logs (`~/.codex`) — cost and rate limit windows | best effort |
 | Gemini (Gemini CLI) | local telemetry log (`~/.gemini`) | best effort |
 
 Providers appear automatically when their CLI is used on the machine.
