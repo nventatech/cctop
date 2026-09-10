@@ -117,11 +117,15 @@ fi
 [ -z "$live" ] && live='null'
 
 sub='null'
-tier=$(jq -r '.oauthAccount.organizationRateLimitTier // empty' "$CLAUDE_CFG" 2>/dev/null)
+# seatTier is needed for team accounts: their rate limit tier is an opaque
+# codename (e.g. default_raven) that carries no plan name at all.
+tier=$(jq -r '[.oauthAccount.organizationRateLimitTier, .oauthAccount.seatTier]
+              | map(select(.)) | join(" ")' "$CLAUDE_CFG" 2>/dev/null)
 case "$tier" in
-  *max_20x*) sub='{"name":"Claude Max 20x","price":200,"currency":"US$"}' ;;
-  *max_5x*)  sub='{"name":"Claude Max 5x","price":100,"currency":"US$"}' ;;
-  *pro*)     sub='{"name":"Claude Pro","price":20,"currency":"US$"}' ;;
+  *max_20x*)   sub='{"name":"Claude Max 20x","price":200,"currency":"US$"}' ;;
+  *max_5x*)    sub='{"name":"Claude Max 5x","price":100,"currency":"US$"}' ;;
+  *team_tier*) sub='{"name":"Claude Team","price":25,"currency":"US$"}' ;;
+  *pro*)       sub='{"name":"Claude Pro","price":20,"currency":"US$"}' ;;
 esac
 
 subOa='null'
@@ -131,11 +135,13 @@ if [ -s "$CODEX_AUTH" ]; then
   while [ -n "$payload" ] && [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
   plan=$(printf '%s' "$payload" | base64 -d 2>/dev/null \
     | jq -r '."https://api.openai.com/auth".chatgpt_plan_type // empty' 2>/dev/null)
+  # newer plans report a compound plan_type (e.g. self_serve_business_prolite),
+  # so glob-match — business/team first, since those strings can contain "pro"
   case "$plan" in
-    pro)      subOa='{"name":"ChatGPT Pro","price":200,"currency":"US$"}' ;;
-    plus)     subOa='{"name":"ChatGPT Plus","price":20,"currency":"US$"}' ;;
-    team)     subOa='{"name":"ChatGPT Team","price":25,"currency":"US$"}' ;;
-    business) subOa='{"name":"ChatGPT Business","price":25,"currency":"US$"}' ;;
+    *business*) subOa='{"name":"ChatGPT Business","price":25,"currency":"US$"}' ;;
+    *team*)     subOa='{"name":"ChatGPT Team","price":25,"currency":"US$"}' ;;
+    *pro*)      subOa='{"name":"ChatGPT Pro","price":200,"currency":"US$"}' ;;
+    *plus*)     subOa='{"name":"ChatGPT Plus","price":20,"currency":"US$"}' ;;
   esac
 fi
 
@@ -180,6 +186,31 @@ if [ -d "$HOME/.codex/sessions" ]; then
     openai=$(jq -cn --argjson c "$cm" --argjson t "${ctd:-0}" --argjson w "${c7:-0}" --argjson m "${c30:-0}" \
       '{id: "openai", name: "OpenAI", color: "#10a37f", costMonth: $c, today: $t, d7: $w, d30: $m}')
   fi
+fi
+
+# Codex stamps its own quota into every token_count event it logs:
+# rate_limits.primary/secondary {used_percent, window_minutes, resets_at (epoch s)}.
+# Newest logged value wins; a window whose reset has already passed is dropped,
+# since the quota refilled and the logged percentage means nothing any more.
+# Needs no request — codex writes it down locally — with the tradeoff that it
+# only refreshes when codex actually runs.
+liveOa='null'
+if [ -d "$HOME/.codex/sessions" ]; then
+  liveOa=$(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt '9 days ago' \
+      -printf '%T@ %p\n' 2>/dev/null | sort -n | cut -d' ' -f2- \
+    | xargs -r grep -h '"rate_limits":{' 2>/dev/null | tail -n 50 \
+    | jq -s --argjson now "$(date +%s)" '
+        def win(l): if (l and l.resets_at > $now)
+                    then { pct: (l.used_percent // 0 | floor),
+                           resets_at: (l.resets_at * 1000),
+                           minutes: (l.window_minutes // 0) }
+                    else null end;
+        [ .[] | select(.payload.type == "token_count") | .payload.rate_limits | select(.) ]
+        | last
+        | if . then {primary: win(.primary), secondary: win(.secondary)}
+               | select(.primary or .secondary)
+          else empty end' 2>/dev/null)
+  [ -z "$liveOa" ] && liveOa='null'
 fi
 
 GEMINI_PRICES='{
@@ -249,6 +280,7 @@ hist=$(cached history 300 $CCU session --json | jq -c '
 
 jq -cn --argjson c "$claude" --argjson oa "$openai" --argjson ge "$gemini" \
       --argjson b "$block" --argjson live "$live" --argjson sub "$sub" \
+      --argjson liveOa "$liveOa" \
       --argjson subOa "$subOa" --argjson h "$hist" --argjson sp "$spark" \
       --argjson pr "$projects" --argjson pm "$prevMonth" --argjson mo "$models" \
       --argjson mh "$months" '
@@ -261,6 +293,7 @@ jq -cn --argjson c "$claude" --argjson oa "$openai" --argjson ge "$gemini" \
     block: (($b.blocks // []) | .[0] // null),
     sessionModels: (($b.blocks // []) | (.[0].models // [])),
     live: $live,
+    liveOpenai: $liveOa,
     subscription: $sub,
     subscriptionOpenai: $subOa,
     history: $h,

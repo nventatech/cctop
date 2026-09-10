@@ -54,6 +54,7 @@ PlasmoidItem {
     property var block: null
     property var live: null
     property var subscription: null
+    property var liveOpenai: null
     property var subscriptionOpenai: null
     property var sessionModels: []
     property var history: []
@@ -164,9 +165,9 @@ PlasmoidItem {
     }
 
     function weeklyPace(data) {
-        if (!data || !live || liveStale) return null
+        if (!data || (!live && !liveOpenai) || (live && liveStale && !data.minutes)) return null
         var end = new Date(data.resets_at).getTime()
-        var start = end - 7 * 24 * 3600 * 1000
+        var start = end - (data.minutes ? data.minutes * 60000 : 7 * 24 * 3600 * 1000)
         var pct = data.pct
         if (isNaN(end) || pct <= 0 || now <= start || now >= end) return null
         var elapsed = now - start
@@ -188,6 +189,23 @@ PlasmoidItem {
         for (var i = 0; i < w.length; i++)
             if (w[i] && w[i].resets_at) w[i].resets_at = roundReset(w[i].resets_at)
         return l
+    }
+
+    // codex reports its quota windows with an explicit length instead of fixed
+    // names, so the label comes from window_minutes
+    function windowLabel(w) {
+        if (!w || !w.minutes) return ""
+        return w.minutes >= 1440 ? Math.round(w.minutes / 1440) + "D"
+                                 : Math.round(w.minutes / 60) + "H"
+    }
+
+    function codexWindows() {
+        if (!liveOpenai) return []
+        var out = []
+        var w = [liveOpenai.primary, liveOpenai.secondary]
+        for (var i = 0; i < w.length; i++)
+            if (w[i]) out.push({ label: ("Codex " + windowLabel(w[i])).toUpperCase(), data: w[i] })
+        return out
     }
 
     function weeklyChecks(l) {
@@ -429,6 +447,7 @@ PlasmoidItem {
                     root.liveStale = true
                 }
                 root.subscription = j.subscription
+                root.liveOpenai = j.liveOpenai || null
                 root.subscriptionOpenai = j.subscriptionOpenai || null
                 root.sessionModels = j.sessionModels || []
                 root.history = j.history || []
@@ -1065,7 +1084,7 @@ PlasmoidItem {
 
             GridLayout {
                 Layout.fillWidth: true
-                visible: root.live !== null
+                visible: root.live !== null || root.liveOpenai !== null
                 columns: 2
                 columnSpacing: Kirigami.Units.smallSpacing * 2
                 rowSpacing: Kirigami.Units.smallSpacing * 2
@@ -1073,12 +1092,15 @@ PlasmoidItem {
                 Repeater {
                     id: weeklyRep
                     model: {
-                        if (!root.live) return []
-                        var list = root.live.weekly ? [{ label: root.tr("weeklyAll"), data: root.live.weekly }] : []
-                        var wm = root.live.weekly_models || []
-                        for (var i = 0; i < wm.length; i++)
-                            list.push({ label: root.scopedModelLabel(wm[i].model).toUpperCase(), data: wm[i] })
-                        return list
+                        var list = []
+                        if (root.live) {
+                            if (root.live.weekly)
+                                list.push({ label: root.tr("weeklyAll"), data: root.live.weekly })
+                            var wm = root.live.weekly_models || []
+                            for (var i = 0; i < wm.length; i++)
+                                list.push({ label: root.scopedModelLabel(wm[i].model).toUpperCase(), data: wm[i] })
+                        }
+                        return list.concat(root.codexWindows())
                     }
 
                     Rectangle {

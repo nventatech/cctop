@@ -3,10 +3,23 @@
 ## 1.7.0 — unreleased
 
 Added
+- Codex rate limit windows in the Plasma popup, read from the `rate_limits`
+  block Codex writes into its own session logs — one card per window (5h,
+  weekly) with percentage, reset and pace, next to the Claude cards
+- Claude **Team** and ChatGPT **Business** plans are now detected
 - GNOME Shell extension (`gnome/`, GNOME 48 to 50) with the same panel
   indicator, popup, notifications and settings as the Plasma widget. The
   collectors are shared; `summary.sh` reads the extension settings when
   installed under GNOME
+
+Fixed
+- Subscription detection missed team and business accounts: a Claude team seat
+  reports an opaque `organizationRateLimitTier` (e.g. `default_raven`) with the
+  plan only in `seatTier`, and newer ChatGPT plans report a compound
+  `chatgpt_plan_type` (e.g. `self_serve_business_prolite`) that the exact-match
+  case never hit. Both are matched now
+- Weekly pace assumed a 7 day window; it now uses the window length the
+  provider reports, so shorter windows are projected correctly
 
 ## 1.6.0 — 2026-08-31
 
