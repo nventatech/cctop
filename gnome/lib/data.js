@@ -27,6 +27,7 @@ export class Monitor {
         this.claudeMonth = 0;
         this.block = null;
         this.live = null;
+        this.liveOpenai = null;
         this.subscription = null;
         this.subscriptionOpenai = null;
         this.sessionModels = [];
@@ -211,6 +212,7 @@ export class Monitor {
             this.liveStale = true;
         }
         this.subscription = j.subscription || null;
+        this.liveOpenai = j.liveOpenai || null;
         this.subscriptionOpenai = j.subscriptionOpenai || null;
         this.sessionModels = j.sessionModels || [];
         this.history = j.history || [];

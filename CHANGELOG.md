@@ -7,6 +7,10 @@ Added
   block Codex writes into its own session logs — one card per window (5h,
   weekly) with percentage, reset and pace, next to the Claude cards
 - Claude **Team** and ChatGPT **Business** plans are now detected
+- Codex rate limit cards in the GNOME popup too, same grid as the Claude cards
+- Waybar module (`waybar/`): panel value with severity class and a summary
+  tooltip, scroll cycles the value, click refreshes. No settings or
+  notifications in this frontend
 - GNOME Shell extension (`gnome/`, GNOME 48 to 50) with the same panel
   indicator, popup, notifications and settings as the Plasma widget. The
   collectors are shared; `summary.sh` reads the extension settings when

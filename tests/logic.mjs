@@ -38,6 +38,14 @@ assert.strictEqual(L.mainModel(['claude-haiku-4-5', 'claude-sonnet-4-5']), 'Sonn
 assert.strictEqual(L.timeLeft('2026-09-05T23:30:00Z', now), '3h 30m');
 assert.deepStrictEqual(L.weeklyPace({pct: 60, resets_at: '2026-09-08T10:00:00Z'}, {}, now, false), {atReset: 95});
 assert.strictEqual(L.weeklyPace({pct: 60, resets_at: '2026-09-08T10:00:00Z'}, {}, now, true), null, 'stale live skips pace');
+const codex5h = {pct: 50, resets_at: Date.parse('2026-09-05T22:00:00Z'), minutes: 300};
+assert.deepStrictEqual(L.weeklyPace(codex5h, {}, now, true), {atReset: 83}, 'codex window paces from its own length even with stale live');
+assert.deepStrictEqual(L.weeklyPace(codex5h, null, now, false), {atReset: 83}, 'codex window paces without a claude payload');
+assert.strictEqual(L.windowLabel({minutes: 10080}), '7D');
+assert.strictEqual(L.windowLabel({minutes: 300}), '5H');
+assert.strictEqual(L.windowLabel(null), '');
+assert.deepStrictEqual(L.codexWindows({primary: {pct: 83, resets_at: 1, minutes: 10080}, secondary: null}).map(w => w.label), ['CODEX 7D']);
+assert.deepStrictEqual(L.codexWindows(null), []);
 assert.deepStrictEqual(L.extraSubscriptions('Cursor Pro: 20\nfoo\nX : 9.5'),
     [{name: 'Cursor Pro', price: 20, currency: 'US$'}, {name: 'X', price: 9.5, currency: 'US$'}]);
 assert.strictEqual(L.currentMonthKey(now), '2026-09');

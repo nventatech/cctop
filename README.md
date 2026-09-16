@@ -11,18 +11,20 @@
 <img src="media/gnome-popup-1.png" width="380" alt="cctop on GNOME Shell">
 </p>
 
-AI usage and cost monitor for the KDE Plasma panel and the GNOME Shell top
-bar. Shows live Claude Code session limits, monthly spend per provider and
-your subscriptions. All data is local: no accounts, no API keys, no
+AI usage and cost monitor for the KDE Plasma panel, the GNOME Shell top bar
+and Waybar. Shows live Claude Code session limits, monthly spend per provider
+and your subscriptions. All data is local: no accounts, no API keys, no
 telemetry.
 
-Both versions share the same collectors and show the same popup. Pick the one
+All versions share the same collectors. Plasma and GNOME show the same popup;
+the Waybar module shows the panel value with a summary tooltip. Pick the one
 for your desktop:
 
 | Desktop | Package | Where |
 |---|---|---|
 | KDE Plasma 6 | plasmoid | `plasma/`, [KDE Store](https://store.kde.org/browse?search=cctop) |
 | GNOME Shell 48 to 50 | extension | `gnome/`, extensions.gnome.org (under review) |
+| Waybar (Hyprland, Sway) | module | `waybar/` |
 
 ## ✨ Features
 
@@ -87,7 +89,7 @@ log sample are welcome.
 
 ## 📋 Requirements
 
-- KDE Plasma 6, or GNOME Shell 48 to 50
+- KDE Plasma 6, GNOME Shell 48 to 50, or Waybar
 - `jq`, `curl`
 - [ccusage](https://github.com/ryoppippi/ccusage): `bun add -g ccusage` (or
   `npm i -g ccusage`). Without it the widget falls back to `bunx`/`npx`, which
@@ -124,6 +126,18 @@ gnome-extensions install dist/cctop-gnome-*.zip
 
 Log out and back in, then enable **cctop** in the Extensions app. The
 indicator sits in the top bar.
+
+### Waybar
+
+```sh
+git clone https://github.com/nventatech/cctop.git ~/.local/share/cctop
+```
+
+Copy the `custom/cctop` block from `waybar/config.jsonc` into your Waybar
+config, the rules from `waybar/style.css` into your stylesheet, and add
+`custom/cctop` to a modules list. Scroll cycles the value (session, weekly,
+today, subscriptions, reset), click refreshes, hover shows the summary. This
+frontend has no settings and no notifications.
 
 ## ⚙️ Configuration
 
@@ -181,6 +195,7 @@ systemctl --user enable --now cctop-summary.timer
   images used by both packages
 - `plasma/` — the Plasma 6 widget
 - `gnome/` — the GNOME Shell extension (`gnome/build.sh` packs it)
+- `waybar/` — the Waybar module (`cctop-waybar.sh` plus config and style snippets)
 - `tests/` — collector and helper tests for both (`bash tests/run.sh`)
 
 ## ❤️ Donate

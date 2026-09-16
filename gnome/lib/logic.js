@@ -97,9 +97,10 @@ export function timeToFull(live, block, now, liveStale) {
 }
 
 export function weeklyPace(data, live, now, liveStale) {
-    if (!data || !live || liveStale) return null;
+    if (!data) return null;
+    if (!data.minutes && (!live || liveStale)) return null;
     const end = new Date(data.resets_at).getTime();
-    const start = end - 7 * 24 * 3600 * 1000;
+    const start = end - (data.minutes ? data.minutes * 60000 : 7 * 24 * 3600 * 1000);
     const pct = data.pct;
     if (isNaN(end) || pct <= 0 || now <= start || now >= end) return null;
     const elapsed = now - start;
@@ -110,6 +111,19 @@ export function weeklyPace(data, live, now, liveStale) {
     const t = hours >= 24 ? Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h'
         : timeLeft(new Date(now + eta).toISOString(), now);
     return {full: t};
+}
+
+export function windowLabel(w) {
+    if (!w || !w.minutes) return '';
+    return w.minutes >= 1440 ? Math.round(w.minutes / 1440) + 'D' : Math.round(w.minutes / 60) + 'H';
+}
+
+export function codexWindows(liveOpenai) {
+    if (!liveOpenai) return [];
+    const out = [];
+    for (const w of [liveOpenai.primary, liveOpenai.secondary])
+        if (w) out.push({label: ('Codex ' + windowLabel(w)).toUpperCase(), data: w});
+    return out;
 }
 
 export function roundReset(s) {

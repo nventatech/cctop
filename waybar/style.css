@@ -1,0 +1,15 @@
+#custom-cctop {
+  padding: 0 10px;
+}
+
+#custom-cctop.warning {
+  color: #d9a441;
+}
+
+#custom-cctop.critical {
+  color: #c75450;
+}
+
+#custom-cctop.stale {
+  color: #9a9a9a;
+}

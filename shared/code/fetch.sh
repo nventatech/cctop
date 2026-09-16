@@ -117,8 +117,6 @@ fi
 [ -z "$live" ] && live='null'
 
 sub='null'
-# seatTier is needed for team accounts: their rate limit tier is an opaque
-# codename (e.g. default_raven) that carries no plan name at all.
 tier=$(jq -r '[.oauthAccount.organizationRateLimitTier, .oauthAccount.seatTier]
               | map(select(.)) | join(" ")' "$CLAUDE_CFG" 2>/dev/null)
 case "$tier" in
@@ -135,8 +133,6 @@ if [ -s "$CODEX_AUTH" ]; then
   while [ -n "$payload" ] && [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
   plan=$(printf '%s' "$payload" | base64 -d 2>/dev/null \
     | jq -r '."https://api.openai.com/auth".chatgpt_plan_type // empty' 2>/dev/null)
-  # newer plans report a compound plan_type (e.g. self_serve_business_prolite),
-  # so glob-match — business/team first, since those strings can contain "pro"
   case "$plan" in
     *business*) subOa='{"name":"ChatGPT Business","price":25,"currency":"US$"}' ;;
     *team*)     subOa='{"name":"ChatGPT Team","price":25,"currency":"US$"}' ;;
@@ -188,21 +184,15 @@ if [ -d "$HOME/.codex/sessions" ]; then
   fi
 fi
 
-# Codex stamps its own quota into every token_count event it logs:
-# rate_limits.primary/secondary {used_percent, window_minutes, resets_at (epoch s)}.
-# Newest logged value wins; a window whose reset has already passed is dropped,
-# since the quota refilled and the logged percentage means nothing any more.
-# Needs no request — codex writes it down locally — with the tradeoff that it
-# only refreshes when codex actually runs.
 liveOa='null'
 if [ -d "$HOME/.codex/sessions" ]; then
   liveOa=$(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt '9 days ago' \
-      -printf '%T@ %p\n' 2>/dev/null | sort -n | cut -d' ' -f2- \
-    | xargs -r grep -h '"rate_limits":{' 2>/dev/null | tail -n 50 \
+      -printf '%T@ %p\0' 2>/dev/null | sort -zn | cut -zd' ' -f2- \
+    | xargs -0r grep -h '"rate_limits":{' 2>/dev/null | tail -n 50 \
     | jq -s --argjson now "$(date +%s)" '
         def win(l): if (l and l.resets_at > $now)
                     then { pct: (l.used_percent // 0 | floor),
-                           resets_at: (l.resets_at * 1000),
+                           resets_at: ((l.resets_at / 60 | round) * 60000),
                            minutes: (l.window_minutes // 0) }
                     else null end;
         [ .[] | select(.payload.type == "token_count") | .payload.rate_limits | select(.) ]

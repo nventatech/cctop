@@ -191,8 +191,6 @@ PlasmoidItem {
         return l
     }
 
-    // codex reports its quota windows with an explicit length instead of fixed
-    // names, so the label comes from window_minutes
     function windowLabel(w) {
         if (!w || !w.minutes) return ""
         return w.minutes >= 1440 ? Math.round(w.minutes / 1440) + "D"

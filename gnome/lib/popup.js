@@ -69,7 +69,7 @@ export class Popup {
         root.add_child(this._session());
         if (this.showHistory && m.history.length > 0) root.add_child(this._history());
         if (this.showHistory && m.months.length > 1) root.add_child(this._months());
-        if (m.live) root.add_child(this._weekly());
+        if (m.live || m.liveOpenai) root.add_child(this._weekly());
         const extra = m.live ? (m.live.extra || m.live.spend || null) : null;
         if (extra) root.add_child(this._extra(extra));
         if (m.allSubscriptions().length > 0) root.add_child(this._subs());
@@ -272,9 +272,10 @@ export class Popup {
 
     _weekly() {
         const m = this._m, tr = m.tr;
-        const list = m.live.weekly ? [{label: tr('weeklyAll'), data: m.live.weekly}] : [];
-        for (const w of m.live.weekly_models || [])
+        const list = m.live && m.live.weekly ? [{label: tr('weeklyAll'), data: m.live.weekly}] : [];
+        for (const w of (m.live && m.live.weekly_models) || [])
             list.push({label: m.scopedModelLabel(w.model).toUpperCase(), data: w});
+        list.push(...L.codexWindows(m.liveOpenai));
         const grid = new St.BoxLayout({vertical: true, x_expand: true, style_class: 'cctop-grid'});
         for (let i = 0; i < list.length; i += 2) {
             const wide = i === list.length - 1;

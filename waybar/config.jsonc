@@ -1,0 +1,12 @@
+{
+  "custom/cctop": {
+    "exec": "~/.local/share/cctop/waybar/cctop-waybar.sh",
+    "return-type": "json",
+    "interval": 60,
+    "signal": 8,
+    "format": "{}",
+    "on-click": "~/.local/share/cctop/waybar/cctop-waybar.sh refresh",
+    "on-scroll-up": "~/.local/share/cctop/waybar/cctop-waybar.sh next",
+    "on-scroll-down": "~/.local/share/cctop/waybar/cctop-waybar.sh prev"
+  }
+}
