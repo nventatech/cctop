@@ -1,7 +1,7 @@
 # Descrição das lojas — cctop (KDE Store e extensions.gnome.org)
 
-Um arquivo, os campos das duas lojas. Seção EGO no fim. O que está no ar hoje é o texto da 1.6.0
-(2026-08-31); a 1.7.0 abaixo está pronta pra colar.
+Um arquivo, os campos das duas lojas. Seção EGO no fim. O que está no ar hoje é o texto da 1.7.0
+(2026-09-16).
 Ao publicar: colar DESCRIPTION no campo de descrição, colar a entrada nova do
 CHANGELOG no campo de changelog, e atualizar a linha "no ar desde" aqui.
 
@@ -134,7 +134,7 @@ subscription detection.
   6 meses, valor do plano, níveis de notificação, aviso de ritmo por
   notificação e export CSV. A ressalva de best effort do Codex/Gemini fica só
   no README, fora da loja.
-- 1.7.0 (pronta): cards do Codex, planos Team/Business, menção ao GNOME e ao
+- 1.7.0 (no ar): cards do Codex, planos Team/Business, menção ao GNOME e ao
   Waybar no fim da descrição.
 
 ## extensions.gnome.org (EGO)
