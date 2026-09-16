@@ -1,7 +1,7 @@
 # Descrição das lojas — cctop (KDE Store e extensions.gnome.org)
 
 Um arquivo, os campos das duas lojas. Seção EGO no fim. O que está no ar hoje é o texto da 1.6.0
-(2026-08-31).
+(2026-08-31); a 1.7.0 abaixo está pronta pra colar.
 Ao publicar: colar DESCRIPTION no campo de descrição, colar a entrada nova do
 CHANGELOG no campo de changelog, e atualizar a linha "no ar desde" aqui.
 
@@ -61,13 +61,16 @@ POPUP
 
 Requires Plasma 6, jq, curl and Node.js or Bun. Claude data needs Claude Code installed. Providers appear automatically when their CLI is used on the machine.
 
-Also available as a GNOME Shell extension, same repository: github.com/nventatech/cctop
+Also available as a GNOME Shell extension and a Waybar module, same repository: github.com/nventatech/cctop
 
-=== CHANGELOG (1.7.0, rascunho) ===
+=== CHANGELOG (1.7.0) ===
 
-GNOME Shell extension in the same repository, with the same panel indicator,
-popup, notifications and settings. The repository is now split into plasma/,
-gnome/ and shared/. No change in the widget itself.
+Codex rate limit windows: one card per window (5h, weekly) with percentage,
+reset time and pace, next to the Claude cards, read from the logs the Codex CLI
+writes locally. Claude Team and ChatGPT Business plans are now detected. The
+weekly pace uses the window length the provider reports. Same repository now
+also ships a GNOME Shell extension and a Waybar module with the same
+collectors.
 
 === CHANGELOG (1.6.0) ===
 
@@ -127,10 +130,12 @@ subscription detection.
   aviso de ritmo, sem créditos extras, sem opção de tema do sistema.
 - 1.4.0 (no ar): acrescentou card por modelo, aviso de ritmo, créditos extras e
   tema do sistema.
-- 1.6.0 (rascunho acima): acrescentou clique no número grande, bloqueio,
+- 1.6.0 (no ar): acrescentou clique no número grande, bloqueio,
   6 meses, valor do plano, níveis de notificação, aviso de ritmo por
   notificação e export CSV. A ressalva de best effort do Codex/Gemini fica só
   no README, fora da loja.
+- 1.7.0 (pronta): cards do Codex, planos Team/Business, menção ao GNOME e ao
+  Waybar no fim da descrição.
 
 ## extensions.gnome.org (EGO)
 

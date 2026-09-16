@@ -1,20 +1,20 @@
 # Changelog
 
-## 1.7.0 — unreleased
+## 1.7.0 — 2026-09-16
 
 Added
-- Codex rate limit windows in the Plasma popup, read from the `rate_limits`
-  block Codex writes into its own session logs — one card per window (5h,
-  weekly) with percentage, reset and pace, next to the Claude cards
-- Claude **Team** and ChatGPT **Business** plans are now detected
-- Codex rate limit cards in the GNOME popup too, same grid as the Claude cards
-- Waybar module (`waybar/`): panel value with severity class and a summary
-  tooltip, scroll cycles the value, click refreshes. No settings or
-  notifications in this frontend
 - GNOME Shell extension (`gnome/`, GNOME 48 to 50) with the same panel
   indicator, popup, notifications and settings as the Plasma widget. The
   collectors are shared; `summary.sh` reads the extension settings when
   installed under GNOME
+- Waybar module (`waybar/`): panel value with severity class and a summary
+  tooltip, scroll cycles the value, click refreshes. No settings or
+  notifications in this frontend
+- Codex rate limit windows in the popup (Plasma and GNOME), read from the
+  `rate_limits` block Codex writes into its own session logs — one card per
+  window (5h, weekly) with percentage, reset and pace, next to the Claude
+  cards. Contributed by @dhananjaysathe
+- Claude **Team** and ChatGPT **Business** plans are now detected
 
 Fixed
 - Subscription detection missed team and business accounts: a Claude team seat

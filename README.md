@@ -4,6 +4,7 @@
 [![Version](https://img.shields.io/github/v/release/nventatech/cctop?label=version&color=54a3d8)](https://github.com/nventatech/cctop/releases)
 [![Plasma 6](https://img.shields.io/badge/Plasma-6-54a3d8?logo=kde&logoColor=white)](https://kde.org/plasma-desktop/)
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-48--50-4a86cf?logo=gnome&logoColor=white)](https://extensions.gnome.org/)
+[![Waybar](https://img.shields.io/badge/Waybar-module-58e1ff?logo=hyprland&logoColor=white)](waybar/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
 
 <p>
